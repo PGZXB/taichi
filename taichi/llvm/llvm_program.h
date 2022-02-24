@@ -128,6 +128,7 @@ class LlvmProgramImpl : public ProgramImpl {
 
   std::unique_ptr<Kernel> create_kernel_from_offline_cache(
       Program *prog,
+      const std::function<void(Kernel *)> &init_callback,
       const std::string &kernel_name,
       bool grad) override;
 

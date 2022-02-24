@@ -659,8 +659,8 @@ bool LlvmProgramImpl::pre_check_kernel_need_updated(
     auto &llvm_ctx = *get_llvm_context(config->arch)->get_this_thread_context();
     kernel_cache_ = reader.get_kernel_cache(kernel_name, llvm_ctx);
   }
-  if (kernel_cache_.last_mtime <= last_mtime)
-    return true;
+  if (kernel_cache_.last_mtime == last_mtime)
+    return false;
   if (kernel_cache_.src_code != current_src_code)
     return true;
   return false;
@@ -668,6 +668,7 @@ bool LlvmProgramImpl::pre_check_kernel_need_updated(
 
 std::unique_ptr<Kernel> LlvmProgramImpl::create_kernel_from_offline_cache(
     Program *prog,
+    const std::function<void(Kernel *)> &init_callback,
     const std::string &kernel_name,
     bool grad) {
   // TODO:WILL_DELETE: 读取文件, 根据raw_name找到Kernel的信息, 创建Kernel
@@ -692,7 +693,8 @@ std::unique_ptr<Kernel> LlvmProgramImpl::create_kernel_from_offline_cache(
       func(&ctx);
     }
   };
-  return std::make_unique<Kernel>(*prog, kernel_func, kernel_name);
+  return std::make_unique<Kernel>(*prog, init_callback, kernel_func,
+                                  kernel_name);
 }
 
 void LlvmProgramImpl::cache_kernel_info(const std::string &kernel_name,

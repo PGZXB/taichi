@@ -194,10 +194,13 @@ class TI_DLL_EXPORT Program {
     return program_impl_->support_offline_cache();
   }
 
-  Kernel &create_kernel_from_offline_cache(const std::string &kernel_name,
-                                           bool grad) {
+  Kernel &create_kernel_from_offline_cache(
+      const std::function<void(Kernel *)> &init_callback,
+      const std::string &kernel_name,
+      bool grad) {
     return *kernels.emplace_back(
-        program_impl_->create_kernel_from_offline_cache(this, kernel_name, grad));
+        program_impl_->create_kernel_from_offline_cache(this, init_callback,
+                                                        kernel_name, grad));
   }
 
   bool pre_check_kernel_need_updated(

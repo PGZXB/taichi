@@ -24,7 +24,6 @@ Kernel::Kernel(Program &program,
                const std::function<void()> &func,
                const std::string &primal_name,
                bool grad) {
-  fmt::print("TEMP$$$ Kernel name {}", primal_name);
   this->init(program, func, primal_name, grad);
 }
 
@@ -60,7 +59,9 @@ Kernel::Kernel(Program &program,
     compile();
 }
 
-Kernel::Kernel(Program &program,FunctionType compiled_from_offline_cache,
+Kernel::Kernel(Program &program,
+               const std::function<void(Kernel *)> &init_callback,
+               FunctionType compiled_from_offline_cache,
                const std::string &name)
     : name(name),
       compiled_(compiled_from_offline_cache),
@@ -68,8 +69,17 @@ Kernel::Kernel(Program &program,FunctionType compiled_from_offline_cache,
           true) {  // FIXME:WILL_DELETE:
                    // 在其他函数是否需要对is_from_offline_cache_做断言
   this->program = &program;
+
   if (grad) {
     this->name += "_grad";
+  }
+
+  {
+    // Note: this is NOT a mutex. If we want to call Kernel::Kernel()
+    // concurrently, we need to lock this block of code together with
+    // taichi::lang::context with a mutex.
+    CurrentCallableGuard _(this->program, this);
+    init_callback(this);
   }
 }
 

@@ -80,7 +80,9 @@ class TI_DLL_EXPORT Kernel : public Callable {
          const std::string &name = "",
          bool grad = false);
 
-  Kernel(Program &program, FunctionType compiled_from_offline_cache,
+  Kernel(Program &program,
+         const std::function<void(Kernel *)> &init_callback,
+         FunctionType compiled_from_offline_cache,
          const std::string &name = "");
 
   bool lowered() const {

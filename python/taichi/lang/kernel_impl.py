@@ -10,7 +10,7 @@ import time
 import numpy as np
 import taichi.lang
 from taichi._lib import core as _ti_core
-from taichi.lang import impl, runtime_ops
+from taichi.lang import impl, kernel_arguments, runtime_ops
 from taichi.lang.ast import (ASTTransformerContext, KernelSimplicityASTChecker,
                              transform_tree)
 from taichi.lang.enums import Layout
@@ -19,7 +19,7 @@ from taichi.lang.exception import (TaichiCompilationError,
 from taichi.lang.expr import Expr
 from taichi.lang.matrix import MatrixType
 from taichi.lang.shell import _shell_pop_print, oinspect
-from taichi.lang.util import has_pytorch, to_taichi_type
+from taichi.lang.util import cook_dtype, has_pytorch, to_taichi_type
 from taichi.linalg.sparse_matrix import sparse_matrix_builder
 from taichi.types import any_arr, primitive_types, template
 
@@ -462,13 +462,39 @@ class Kernel:
         prog = impl.get_runtime().prog
         #TODO:WILL_DELETE: 检查此Kernel是否可以直接使用
         #FIXME:WILL_DELETE: 仍简单的使用原有的key, 修复free variable问题?
-        #TODO:WILL_DELETE: kernel需要重新编译: (时间戳, 源码)被更新 and FIXME:key(现在不支持)被更新 and FIXME:依赖项改变(free-vars/ti.func)
+        #TODO:WILL_DELETE: kernel需要重新编译: (时间戳, 源码)被更新 or FIXME:key(现在不支持)被更新 or FIXME:依赖项改变(free-vars/ti.func)
         if self.use_offline_cache:
+            print("TEMP$$$ Loading from offline-cache...")
+
+            def init_cached_kernel(kernel_cxx):
+                #FIXME:WILL_DELETE: 设置global_vars(自由变量)
+
+                #TODO:WILL_DELETE: 初始化Kernel返回值
+                if self.return_type is not None:
+                    dtype = cook_dtype(self.return_type)
+                    #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_ret
+                    impl.get_runtime().prog.decl_ret(dtype)
+
+                #TODO:WILL_DELETE: 初始化Kernel参数列表
+                for i, arg in enumerate(args):
+                    if isinstance(self.argument_annotations[i], template):
+                        assert False  #FIXME:WILL_DELETE: 待实现
+                    elif isinstance(self.argument_annotations[i],
+                                    sparse_matrix_builder):
+                        assert False  #FIXME:WILL_DELETE: 待实现
+                    elif isinstance(self.argument_annotations[i], any_arr):
+                        assert False  #FIXME:WILL_DELETE: 待实现
+                    elif isinstance(self.argument_annotations[i], MatrixType):
+                        assert False  #FIXME:WILL_DELETE: 待实现
+                    else:  #FIXME:WILL_DELETE: 封装成函数
+                        dtype = cook_dtype(self.argument_annotations[i])
+                        #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_arg
+                        impl.get_runtime().prog.decl_arg(dtype, False)
+
             self.kernel_cpp = prog.create_kernel_from_offline_cache(
-                raw_kernel_name, self.is_grad)
-            #FIXME:WILL_DELETE: 设置global_vars(自由变量)
-            #FIXME:WILL_DELETE: 设置参数
+                init_cached_kernel, raw_kernel_name, self.is_grad)
         else:  #TODO:WILL_DELETE: 需要重新编译
+            print("TEMP$$$ Compiling...")
             tree, ctx = _get_tree_and_ctx(
                 self,
                 args=args,
