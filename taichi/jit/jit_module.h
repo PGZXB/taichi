@@ -48,6 +48,7 @@ class JITModule {
   // Note: args must pass by value
   template <typename... Args>
   void call(const std::string &name, Args... args) {
+    fmt::print("TEMP$$$ Call {}\n", name);
     if (direct_dispatch()) {
       get_function<Args...>(name)(args...);
     } else {

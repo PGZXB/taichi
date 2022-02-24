@@ -80,6 +80,9 @@ class TI_DLL_EXPORT Kernel : public Callable {
          const std::string &name = "",
          bool grad = false);
 
+  Kernel(Program &program, FunctionType compiled_from_offline_cache,
+         const std::string &name = "");
+
   bool lowered() const {
     return lowered_;
   }
@@ -129,6 +132,8 @@ class TI_DLL_EXPORT Kernel : public Callable {
   // lower inital AST all the way down to a bunch of
   // OffloadedStmt for async execution
   bool lowered_{false};
+
+  bool is_from_offline_cache_{false};
 };
 
 TLANG_NAMESPACE_END

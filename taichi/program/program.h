@@ -6,6 +6,7 @@
 #include <optional>
 #include <atomic>
 #include <stack>
+#include "taichi/common/core.h"
 
 #define TI_RUNTIME_HOST
 #include "taichi/ir/frontend_ir.h"
@@ -187,6 +188,30 @@ class TI_DLL_EXPORT Program {
     // Expr::set_allow_store(false);
     kernels.emplace_back(std::move(func));
     return *kernels.back();
+  }
+
+  bool support_offline_cache() const {
+    return program_impl_->support_offline_cache();
+  }
+
+  Kernel &create_kernel_from_offline_cache(const std::string &kernel_name,
+                                           bool grad) {
+    return *kernels.emplace_back(
+        program_impl_->create_kernel_from_offline_cache(this, kernel_name, grad));
+  }
+
+  bool pre_check_kernel_need_updated(
+      const std::string &kernel_name,
+      uint64 last_mtime,
+      const std::string &current_src_code) const {
+    return program_impl_->pre_check_kernel_need_updated(kernel_name, last_mtime,
+                                                        current_src_code);
+  }
+
+  void cache_kernel_info(const std::string &kernel_name,
+                         uint64 last_mtime,
+                         const std::string &src_code) {
+    program_impl_->cache_kernel_info(kernel_name, last_mtime, src_code);
   }
 
   Function *create_function(const FunctionKey &func_key);

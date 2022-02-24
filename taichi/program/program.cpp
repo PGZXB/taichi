@@ -67,7 +67,7 @@ Program::Program(Arch desired_arch)
                        : "ri"(fpcr | (1 << 24)));  // Bit 24 is FZ
   __asm__ __volatile__("");
 #endif
-  config = default_compile_config;
+  config = default_compile_config;  // FIXME:保存default_compile_config到.ti
   config.arch = desired_arch;
   // TODO: allow users to run in debug mode without out-of-bound checks
   if (config.debug)

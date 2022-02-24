@@ -1,4 +1,8 @@
 #pragma once
+#include <string>
+#include <vector>
+#include "taichi/common/core.h"
+#include "taichi/llvm/llvm_offline_cache.h"
 #include "taichi/system/snode_tree_buffer_manager.h"
 #include "taichi/inc/constants.h"
 #include "taichi/program/compile_config.h"
@@ -36,6 +40,7 @@ class CpuDevice;
 class LlvmProgramImpl : public ProgramImpl {
  public:
   LlvmProgramImpl(CompileConfig &config, KernelProfilerBase *profiler);
+  ~LlvmProgramImpl();
 
   void initialize_host();
 
@@ -111,6 +116,30 @@ class LlvmProgramImpl : public ProgramImpl {
                     std::size_t size,
                     uint32_t data);
 
+  bool support_offline_cache() const override {
+    auto arch = config->arch;
+    return arch_is_cpu(arch) && arch != Arch::wasm;
+  }
+
+  bool pre_check_kernel_need_updated(
+      const std::string &kernel_name,
+      uint64 last_mtime,
+      const std::string &current_src_code) override;
+
+  std::unique_ptr<Kernel> create_kernel_from_offline_cache(
+      Program *prog,
+      const std::string &kernel_name,
+      bool grad) override;
+
+  void cache_kernel_info(const std::string &kernel_name,
+                         uint64 last_mtime,
+                         const std::string &src_code) override;
+
+  void cache_kernel_calling_info(
+      const std::string &kernel_name,
+      llvm::Module *module,
+      const std::vector<std::string> &offloaded_task_name_list);
+
  private:
   std::unique_ptr<llvm::Module> clone_struct_compiler_initial_context(
       const std::vector<std::unique_ptr<SNodeTree>> &snode_trees_,
@@ -168,6 +197,9 @@ class LlvmProgramImpl : public ProgramImpl {
   DeviceAllocation preallocated_device_buffer_alloc_{kDeviceNullAllocation};
 
   std::unordered_map<int, DeviceAllocation> snode_tree_allocs_;
+
+  LlvmOfflineCache::KernelCache kernel_cache_;
+  LlvmOfflineCache cache_;
 
   std::shared_ptr<Device> device_{nullptr};
   cuda::CudaDevice *cuda_device();

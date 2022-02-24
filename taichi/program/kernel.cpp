@@ -2,6 +2,7 @@
 
 #include "taichi/backends/cuda/cuda_driver.h"
 #include "taichi/codegen/codegen.h"
+#include "taichi/common/logging.h"
 #include "taichi/common/task.h"
 #include "taichi/ir/statements.h"
 #include "taichi/ir/transforms.h"
@@ -23,6 +24,7 @@ Kernel::Kernel(Program &program,
                const std::function<void()> &func,
                const std::string &primal_name,
                bool grad) {
+  fmt::print("TEMP$$$ Kernel name {}", primal_name);
   this->init(program, func, primal_name, grad);
 }
 
@@ -56,6 +58,19 @@ Kernel::Kernel(Program &program,
 
   if (!program.config.lazy_compilation)
     compile();
+}
+
+Kernel::Kernel(Program &program,FunctionType compiled_from_offline_cache,
+               const std::string &name)
+    : name(name),
+      compiled_(compiled_from_offline_cache),
+      is_from_offline_cache_(
+          true) {  // FIXME:WILL_DELETE:
+                   // 在其他函数是否需要对is_from_offline_cache_做断言
+  this->program = &program;
+  if (grad) {
+    this->name += "_grad";
+  }
 }
 
 void Kernel::compile() {
@@ -101,6 +116,12 @@ void Kernel::lower(bool to_executable) {
 }
 
 void Kernel::operator()(LaunchContextBuilder &ctx_builder) {
+  if (is_from_offline_cache_) {  // TODO:WILL_DELETE: 如果是从cache中加载的,
+                                 // 直接调用
+    TI_ASSERT(compiled_);
+    compiled_(ctx_builder.get_context());
+    return;
+  }
   if (!program->config.async_mode || this->is_evaluator) {
     if (!compiled_) {
       compile();

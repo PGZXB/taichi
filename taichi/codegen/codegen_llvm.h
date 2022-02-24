@@ -29,9 +29,9 @@ class OffloadedTask {
 
   void end();
 
-  void compile();
+  void compile();  // FIXME:PGZXB : WILL DELETE
 
-  void operator()(RuntimeContext *context);
+  void operator()(RuntimeContext *context);  // FIXME:PGZXB : WILL DELETE
 };
 
 class FunctionCreationGuard {

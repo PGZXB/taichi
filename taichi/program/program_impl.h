@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+#include "taichi/common/core.h"
 #include "taichi/ir/statements.h"
 #include "taichi/system/memory_pool.h"
 #include "taichi/common/logging.h"
@@ -63,6 +65,32 @@ class ProgramImpl {
    * Make a AotModulerBuilder, currently only supported by metal and wasm.
    */
   virtual std::unique_ptr<AotModuleBuilder> make_aot_module_builder() = 0;
+
+  virtual bool support_offline_cache() const {
+    return false;
+  }
+
+  virtual bool pre_check_kernel_need_updated(
+      const std::string &kernel_name,
+      uint64 last_mtime,
+      const std::string &current_src_code) {
+    TI_NOT_IMPLEMENTED
+    return false;
+  }
+
+  virtual std::unique_ptr<Kernel> create_kernel_from_offline_cache(
+      Program *prog,
+      const std::string &kernel_name,
+      bool grad) {
+    TI_NOT_IMPLEMENTED
+    return nullptr;
+  }
+
+  virtual void cache_kernel_info(const std::string &kernel_name,
+                                 uint64 last_mtime,
+                                 const std::string &src_code) {
+    TI_NOT_IMPLEMENTED
+  }
 
   virtual Device *get_compute_device() {
     return nullptr;

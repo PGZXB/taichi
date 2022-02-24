@@ -397,9 +397,16 @@ void export_lang(py::module &m) {
              return program->current_callable->insert_arr_arg(dt, total_dim,
                                                               shape);
            })
-      .def("decl_ret", [&](Program *program, const DataType &dt) {
-        return program->current_callable->insert_ret(dt);
-      });
+      .def("decl_ret",
+           [&](Program *program, const DataType &dt) {
+             return program->current_callable->insert_ret(dt);
+           })
+      .def("support_offline_cache", &Program::support_offline_cache)
+      .def("create_kernel_from_offline_cache",
+           &Program::create_kernel_from_offline_cache, py::return_value_policy::reference)
+      .def("pre_check_kernel_need_updated",
+           &Program::pre_check_kernel_need_updated)
+      .def("cache_kernel_info", &Program::cache_kernel_info);
 
   py::class_<AotModuleBuilder>(m, "AotModuleBuilder")
       .def("add_field", &AotModuleBuilder::add_field)

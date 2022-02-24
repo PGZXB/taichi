@@ -1,4 +1,8 @@
+#include <iterator>
 #ifdef TI_WITH_LLVM
+#include <chrono>
+
+#include "taichi/llvm/llvm_offline_cache.h"
 #include "taichi/codegen/codegen_llvm.h"
 
 #include "taichi/ir/statements.h"
@@ -319,7 +323,7 @@ CodeGenLLVM::CodeGenLLVM(Kernel *kernel,
   context_ty = get_runtime_type("RuntimeContext");
   physical_coordinate_ty = get_runtime_type(kLLVMPhysicalCoordinatesName);
 
-  kernel_name = kernel->name + "_kernel";
+  kernel_name = kernel->name; // NOTE:WILL_DELETE: 统一采用mangled name
 }
 
 llvm::Value *CodeGenLLVM::cast_int(llvm::Value *input_val,
@@ -2234,9 +2238,24 @@ FunctionType CodeGenLLVM::compile_module_to_executable() {
   TI_AUTO_PROF
   eliminate_unused_functions();
 
+  fmt::print("TEMP$$$ Codegen : Module of kernel {}\n", kernel->get_name());
+
+  auto *llvm_prog = prog->get_llvm_program_impl();
+  if (llvm_prog->support_offline_cache() && !kernel->is_evaluator) {
+    namespace sc = std::chrono;
+    std::vector<std::string> offloaded_task_name_list;
+    for (auto &task : offloaded_tasks) {
+      offloaded_task_name_list.push_back(task.name);
+    }
+    llvm_prog->cache_kernel_calling_info(kernel_name, this->module.get(),
+                                         offloaded_task_name_list);
+  }
+
   tlctx->add_module(std::move(module));
 
+  int __i = 0;
   for (auto &task : offloaded_tasks) {
+    fmt::print("TEMP$$$ Task{} : {}\n", __i++, task.name);
     task.compile();
   }
   auto offloaded_tasks_local = offloaded_tasks;

@@ -1,9 +1,11 @@
 import ast
 import functools
 import inspect
+import os
 import re
 import sys
 import textwrap
+import time
 
 import numpy as np
 import taichi.lang
@@ -367,6 +369,25 @@ class Kernel:
         self.reset()
         self.kernel_cpp = None
 
+        prog = impl.get_runtime().prog
+
+        src_code1 = oinspect.getsource(self.func)
+        src_file1 = oinspect.getsourcefile(self.func)
+        if prog is not None and prog.support_offline_cache() and len(
+                self.template_slot_locations) == 0:
+            raw_name = self.func.__name__  #FIXME:WILL_DELETE: 待name mangling规则完善后, 将会和下文中的kernel_name统一
+            src_code = oinspect.getsource(self.func)
+            src_file = oinspect.getsourcefile(self.func)
+            self.use_offline_cache = not prog.pre_check_kernel_need_updated(
+                raw_name, int(os.path.getmtime(src_file) * 1000),
+                src_code)  #FIXME:WILL_DELETE: 会完善规则
+            if not self.use_offline_cache:
+                prog.cache_kernel_info(raw_name,
+                                       int(round(time.time() * 1000)),
+                                       src_code)
+        else:
+            self.use_offline_cache = False  #TODO:WILL_DELETE: (暂)不支持有ti.template()参数的Kernel做offline-cache
+
     def reset(self):
         self.runtime = impl.get_runtime()
         if self.is_grad:
@@ -433,48 +454,58 @@ class Kernel:
         grad_suffix = ""
         if self.is_grad:
             grad_suffix = "_grad"
-        kernel_name = f"{self.func.__name__}_c{self.kernel_counter}_{key[1]}{grad_suffix}"
+        raw_kernel_name = self.func.__name__
+        # kernel_name = f"{raw_kernel_name}_c{self.kernel_counter}_{key[1]}{grad_suffix}" #FIXME:WILL_DELETE: name mangling规则需要修改, 使之可重用
+        kernel_name = raw_kernel_name
         _logging.trace(f"Compiling kernel {kernel_name}...")
 
-        tree, ctx = _get_tree_and_ctx(
-            self,
-            args=args,
-            excluded_parameters=self.template_slot_locations,
-            arg_features=arg_features)
+        prog = impl.get_runtime().prog
+        #TODO:WILL_DELETE: 检查此Kernel是否可以直接使用
+        #FIXME:WILL_DELETE: 仍简单的使用原有的key, 修复free variable问题?
+        #TODO:WILL_DELETE: kernel需要重新编译: (时间戳, 源码)被更新 and FIXME:key(现在不支持)被更新 and FIXME:依赖项改变(free-vars/ti.func)
+        if self.use_offline_cache:
+            self.kernel_cpp = prog.create_kernel_from_offline_cache(
+                raw_kernel_name, self.is_grad)
+            #FIXME:WILL_DELETE: 设置global_vars(自由变量)
+            #FIXME:WILL_DELETE: 设置参数
+        else:  #TODO:WILL_DELETE: 需要重新编译
+            tree, ctx = _get_tree_and_ctx(
+                self,
+                args=args,
+                excluded_parameters=self.template_slot_locations,
+                arg_features=arg_features)
 
-        if self.is_grad:
-            KernelSimplicityASTChecker(self.func).visit(tree)
+            if self.is_grad:
+                KernelSimplicityASTChecker(self.func).visit(tree)
 
-        # Do not change the name of 'taichi_ast_generator'
-        # The warning system needs this identifier to remove unnecessary messages
-        def taichi_ast_generator(kernel_cxx):
-            if self.runtime.inside_kernel:
-                raise TaichiSyntaxError(
-                    "Kernels cannot call other kernels. I.e., nested kernels are not allowed. "
-                    "Please check if you have direct/indirect invocation of kernels within kernels. "
-                    "Note that some methods provided by the Taichi standard library may invoke kernels, "
-                    "and please move their invocations to Python-scope.")
-            self.runtime.inside_kernel = True
-            self.runtime.current_kernel = self
-            try:
-                ctx.ast_builder = kernel_cxx.ast_builder()
-                transform_tree(tree, ctx)
-                if not impl.get_runtime().experimental_real_function:
-                    if self.return_type and not ctx.returned:
-                        raise TaichiSyntaxError(
-                            "Kernel has a return type but does not have a return statement"
-                        )
-            finally:
-                self.runtime.inside_kernel = False
-                self.runtime.current_kernel = None
+            # Do not change the name of 'taichi_ast_generator'
+            # The warning system needs this identifier to remove unnecessary messages
+            def taichi_ast_generator(kernel_cxx):
+                if self.runtime.inside_kernel:
+                    raise TaichiSyntaxError(
+                        "Kernels cannot call other kernels. I.e., nested kernels are not allowed. "
+                        "Please check if you have direct/indirect invocation of kernels within kernels. "
+                        "Note that some methods provided by the Taichi standard library may invoke kernels, "
+                        "and please move their invocations to Python-scope.")
+                self.runtime.inside_kernel = True
+                self.runtime.current_kernel = self
+                try:
+                    ctx.ast_builder = kernel_cxx.ast_builder()
+                    transform_tree(tree, ctx)
+                    if not impl.get_runtime().experimental_real_function:
+                        if self.return_type and not ctx.returned:
+                            raise TaichiSyntaxError(
+                                "Kernel has a return type but does not have a return statement"
+                            )
+                finally:
+                    self.runtime.inside_kernel = False
+                    self.runtime.current_kernel = None
 
-        taichi_kernel = impl.get_runtime().prog.create_kernel(
-            taichi_ast_generator, kernel_name, self.is_grad)
-
-        self.kernel_cpp = taichi_kernel
+            self.kernel_cpp = prog.create_kernel(taichi_ast_generator,
+                                                 kernel_name, self.is_grad)
 
         assert key not in self.compiled_functions
-        self.compiled_functions[key] = self.get_function_body(taichi_kernel)
+        self.compiled_functions[key] = self.get_function_body(self.kernel_cpp)
 
     def get_torch_callbacks(self, v, has_torch, is_ndarray=True):
         callbacks = []

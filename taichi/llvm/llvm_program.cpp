@@ -1,7 +1,18 @@
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm_program.h"
 #include "llvm/IR/Module.h"
 
 #include "taichi/backends/cuda/cuda_driver.h"
+#include "spdlog/fmt/bundled/core.h"
+#include "taichi/common/core.h"
+#include "taichi/common/logging.h"
+#include "taichi/llvm/llvm_context.h"
+#include "taichi/llvm/llvm_offline_cache.h"
 #include "taichi/program/arch.h"
 #include "taichi/platform/cuda/detect_cuda.h"
 #include "taichi/math/arithmetic.h"
@@ -115,6 +126,12 @@ LlvmProgramImpl::LlvmProgramImpl(CompileConfig &config_,
 #endif
 }
 
+LlvmProgramImpl::~LlvmProgramImpl() {
+  LlvmOfflineCacheFileWriter writer(".");
+  writer.set_data(std::move(this->cache_));
+  writer.dump();
+}
+
 void LlvmProgramImpl::initialize_host() {
   // Note this cannot be placed inside LlvmProgramImpl constructor, see doc
   // string for init_runtime_jit_module() for more details.
@@ -135,7 +152,10 @@ FunctionType LlvmProgramImpl::compile(Kernel *kernel,
     kernel->lower();
   }
   auto codegen = KernelCodeGen::create(kernel->arch, kernel, offloaded);
-  return codegen->codegen();
+  fmt::print("TEMP$$$ Codegen Start {}\n", kernel->name);
+  auto fn = codegen->codegen();
+  fmt::print("TEMP$$$ Codegen End   {}\n", kernel->name);
+  return fn;
 }
 
 void LlvmProgramImpl::synchronize() {
@@ -628,5 +648,70 @@ void LlvmProgramImpl::fill_ndarray(const DeviceAllocation &alloc,
     std::fill((uint32_t *)ptr, (uint32_t *)ptr + size, data);
   }
 }
+
+bool LlvmProgramImpl::pre_check_kernel_need_updated(
+    const std::string &kernel_name,
+    uint64 last_mtime,
+    const std::string &current_src_code) {
+  if (kernel_name != kernel_cache_.kernel_name) {
+    LlvmOfflineCacheFileReader reader(
+        ".");  // FIXME:WILL_DELETE: 由config提供路径并可让用户配置?
+    auto &llvm_ctx = *get_llvm_context(config->arch)->get_this_thread_context();
+    kernel_cache_ = reader.get_kernel_cache(kernel_name, llvm_ctx);
+  }
+  if (kernel_cache_.last_mtime <= last_mtime)
+    return true;
+  if (kernel_cache_.src_code != current_src_code)
+    return true;
+  return false;
+}
+
+std::unique_ptr<Kernel> LlvmProgramImpl::create_kernel_from_offline_cache(
+    Program *prog,
+    const std::string &kernel_name,
+    bool grad) {
+  // TODO:WILL_DELETE: 读取文件, 根据raw_name找到Kernel的信息, 创建Kernel
+  if (kernel_name != kernel_cache_.kernel_name) {
+    LlvmOfflineCacheFileReader reader(
+        ".");  // FIXME:WILL_DELETE: 由config提供路径并可让用户配置?
+    auto &llvm_ctx = *get_llvm_context(config->arch)->get_this_thread_context();
+    kernel_cache_ = reader.get_kernel_cache(kernel_name, llvm_ctx);
+  }
+
+  using task_fp_type = int32 (*)(void *);
+  TaichiLLVMContext *tlctx = this->get_llvm_context(config->arch);
+  std::vector<task_fp_type> func_list;
+  tlctx->add_module(std::move(kernel_cache_.owned_module));
+  for (const auto &func_name : kernel_cache_.offloaded_task_name_list) {
+    void *kernel_symbol = tlctx->lookup_function_pointer(func_name);
+    TI_ASSERT(kernel_symbol);
+    func_list.push_back((task_fp_type)kernel_symbol);
+  }
+  auto kernel_func = [flist = std::move(func_list)](RuntimeContext &ctx) {
+    for (auto func : flist) {
+      func(&ctx);
+    }
+  };
+  return std::make_unique<Kernel>(*prog, kernel_func, kernel_name);
+}
+
+void LlvmProgramImpl::cache_kernel_info(const std::string &kernel_name,
+                                        uint64 last_mtime,
+                                        const std::string &src_code) {
+  auto &kernel_cache = cache_.kernels[kernel_name];
+  kernel_cache.kernel_name = kernel_name;
+  kernel_cache.last_mtime = last_mtime;
+  kernel_cache.src_code = src_code;
+}
+
+void LlvmProgramImpl::cache_kernel_calling_info(
+    const std::string &kernel_name,
+    llvm::Module *module,
+    const std::vector<std::string> &offloaded_task_name_list) {
+  auto &kernel_cache = cache_.kernels[kernel_name];
+  kernel_cache.owned_module = llvm::CloneModule(*module);
+  kernel_cache.offloaded_task_name_list = offloaded_task_name_list;
+}
+
 }  // namespace lang
 }  // namespace taichi
