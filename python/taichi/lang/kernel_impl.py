@@ -331,6 +331,103 @@ class TaichiCallableTemplateMapper:
         return self.mapping[key], key
 
 
+#TODO:WILL_DELETE: 统一offline和online cache, 代替TaichiCallableTemplateMapper
+#NOTE:WILL_DELETE: 对于含有template参数的参数列表, 得到的key是运行时的, 否则是编译时的
+class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许不是很好
+    def __init__(self, annotations, is_grad):
+        self.annotations = annotations
+        self.is_grad = is_grad
+        self.num_args = len(annotations)
+
+    @staticmethod
+    def extract_arg(arg, anno):
+        def layout_to_key(layout):
+            if layout == Layout.AOS:
+                return 'A'
+            elif layout == Layout.SOA:
+                return 'S'
+            assert False
+
+        res = ''
+        if isinstance(anno, template):
+            if isinstance(anno, template):
+                res += 't'
+                if isinstance(arg, taichi.lang.snode.SNode):
+                    res += str(arg.ptr.get_address())
+                elif isinstance(arg, taichi.lang.expr.Expr):
+                    res += str(arg.ptr.get_underlying_ptr_address())
+                elif isinstance(arg, _ti_core.Expr):
+                    res += str(arg.get_underlying_ptr_address())
+                elif isinstance(arg, tuple):
+                    res += ''.join((
+                        TaichiKernelArgumentListKeyGetter.extract_arg(item, anno)
+                        for item in arg))
+                else:
+                    res += str(id(arg))
+        elif isinstance(anno, any_arr):
+            res += 'a'
+            dtype_str = to_taichi_type(arg.dtype).to_string()
+            res += str(len(dtype_str)) + dtype_str
+            if isinstance(arg, taichi.lang._ndarray.ScalarNdarray):
+                res += str(len(arg.shape))
+                res += 's'
+                res += 'A' # AOS
+            elif isinstance(arg, taichi.lang.matrix.VectorNdarray):
+                res += str(len(arg.shape) + 1)
+                res += 's' + str(arg.n)
+                res += layout_to_key(arg.layout)
+            elif isinstance(arg, taichi.lang.matrix.MatrixNdarray):
+                res += str(len(arg.shape) + 2)
+                res += 's{}x{}'.format(arg.n, arg.m)
+                res += layout_to_key(arg.layout)
+            else:
+                element_dim = 0 if anno.element_dim is None else anno.element_dim
+                layout = Layout.AOS if anno.layout is None else anno.layout
+                shape = tuple(arg.shape)
+                element_shape = () if element_dim == 0 else shape[: element_dim] if layout == Layout.SOA else shape[-element_dim:]
+                res += str(len(shape))
+                res += 's'
+                res += ''.join([f'{e}x' for e in element_shape])
+                if res[-1] == 'x':
+                    res = res[0: len(res)-1]
+                res += layout_to_key(layout)
+        else: # intern
+            key = None
+            if isinstance(anno, (_ti_core.DataType, _ti_core.Type)):
+                key = anno.to_string()
+            else:
+                key = anno.__name__
+
+            res += 'i' + str(len(key)) + key
+
+        return res
+
+    @staticmethod
+    def extract_args_as_key(args, annotations):
+        arg_keys = []
+        for arg, anno in zip(args, annotations):
+            arg_keys.append(
+                TaichiKernelArgumentListKeyGetter.extract_arg(arg, anno))
+        return ''.join(arg_keys)
+
+    def lookup_key(self, args):
+        if len(args) != self.num_args:
+            raise TypeError(
+                f'{self.num_args} argument(s) needed but {len(args)} provided.'
+            )
+
+        return self.extract_args_as_key(args, self.annotations)
+
+
+def _mangle_kernel_name(full_pkg_path: str, raw_name: str, argument_list_key: str, is_grad: bool) -> str:
+    splited_full_pkg_path = full_pkg_path.split('.')
+    mangled_full_pkg_path = ''.join((f'{len(e)}{e}' for e in splited_full_pkg_path))
+    mangled_name = f"__{'g' if is_grad else 'n'}{mangled_full_pkg_path}{len(raw_name)}{raw_name}{argument_list_key}"
+    print("TEMP$$$ Mangle kernel name from '{}.{}' to '{}'".format(
+        full_pkg_path, raw_name, mangled_name))
+    return mangled_name
+
+
 def _get_global_vars(_func):
     # Discussions: https://github.com/taichi-dev/taichi/issues/282
     global_vars = _func.__globals__.copy()
@@ -365,28 +462,14 @@ class Kernel:
                 self.template_slot_locations.append(i)
         self.mapper = TaichiCallableTemplateMapper(
             self.argument_annotations, self.template_slot_locations)
+        self.arg_list_key_getter = TaichiKernelArgumentListKeyGetter(
+            self.argument_annotations, self.is_grad)
         impl.get_runtime().kernels.append(self)
         self.reset()
         self.kernel_cpp = None
-
-        prog = impl.get_runtime().prog
-
-        src_code1 = oinspect.getsource(self.func)
-        src_file1 = oinspect.getsourcefile(self.func)
-        if prog is not None and prog.support_offline_cache() and len(
-                self.template_slot_locations) == 0:
-            raw_name = self.func.__name__  #FIXME:WILL_DELETE: 待name mangling规则完善后, 将会和下文中的kernel_name统一
-            src_code = oinspect.getsource(self.func)
-            src_file = oinspect.getsourcefile(self.func)
-            self.use_offline_cache = not prog.pre_check_kernel_need_updated(
-                raw_name, int(os.path.getmtime(src_file) * 1000),
-                src_code)  #FIXME:WILL_DELETE: 会完善规则
-            if not self.use_offline_cache:
-                prog.cache_kernel_info(raw_name,
-                                       int(round(time.time() * 1000)),
-                                       src_code)
-        else:
-            self.use_offline_cache = False  #TODO:WILL_DELETE: (暂)不支持有ti.template()参数的Kernel做offline-cache
+        self.use_offline_cache = None
+        self.full_pkg_path = inspect.getmodule(self.func).__name__
+        self.raw_name = self.func.__name__
 
     def reset(self):
         self.runtime = impl.get_runtime()
@@ -394,6 +477,26 @@ class Kernel:
             self.compiled_functions = self.runtime.compiled_grad_functions
         else:
             self.compiled_functions = self.runtime.compiled_functions
+
+    def init_offline_cache(self, mangled_kernel_name):
+        if self.use_offline_cache is None:
+            print(
+                'TEMP$$$ Init offline cache of {}'.format(mangled_kernel_name))
+            prog = impl.get_runtime().prog
+            if prog is not None and prog.support_offline_cache() and len(
+                    self.template_slot_locations) == 0:
+                src_code = oinspect.getsource(self.func)
+                src_file = oinspect.getsourcefile(self.func)
+                self.use_offline_cache = not prog.pre_check_kernel_need_updated(
+                    mangled_kernel_name, int(
+                        os.path.getmtime(src_file) * 1000),
+                    src_code)  #FIXME:WILL_DELETE: 会完善规则
+                if not self.use_offline_cache:
+                    prog.cache_kernel_info(mangled_kernel_name,
+                                           int(round(time.time() * 1000)),
+                                           src_code)
+            else:
+                self.use_offline_cache = False  #TODO:WILL_DELETE: (暂)不支持有ti.template()参数的Kernel做offline-cache
 
     def extract_arguments(self):
         sig = inspect.signature(self.func)
@@ -445,20 +548,20 @@ class Kernel:
             self.argument_annotations.append(annotation)
             self.argument_names.append(param.name)
 
-    def materialize(self, key=None, args=None, arg_features=None):
+    def materialize(self,
+                    mangled_kernel_name,
+                    key=None,
+                    args=None,
+                    arg_features=None):
+        #FIXME:WILL_DELETE: key和mangled_kernel_name应该是一个
         if key is None:
             key = (self.func, 0)
         self.runtime.materialize()
         if key in self.compiled_functions:
             return
-        grad_suffix = ""
-        if self.is_grad:
-            grad_suffix = "_grad"
-        raw_kernel_name = self.func.__name__
-        # kernel_name = f"{raw_kernel_name}_c{self.kernel_counter}_{key[1]}{grad_suffix}" #FIXME:WILL_DELETE: name mangling规则需要修改, 使之可重用
-        kernel_name = raw_kernel_name
-        _logging.trace(f"Compiling kernel {kernel_name}...")
+        _logging.trace(f"Compiling kernel {mangled_kernel_name}...")
 
+        self.init_offline_cache(mangled_kernel_name)
         prog = impl.get_runtime().prog
         #TODO:WILL_DELETE: 检查此Kernel是否可以直接使用
         #FIXME:WILL_DELETE: 仍简单的使用原有的key, 修复free variable问题?
@@ -492,7 +595,7 @@ class Kernel:
                         impl.get_runtime().prog.decl_arg(dtype, False)
 
             self.kernel_cpp = prog.create_kernel_from_offline_cache(
-                init_cached_kernel, raw_kernel_name, self.is_grad)
+                init_cached_kernel, mangled_kernel_name, self.is_grad)
         else:  #TODO:WILL_DELETE: 需要重新编译
             print("TEMP$$$ Compiling...")
             tree, ctx = _get_tree_and_ctx(
@@ -528,7 +631,8 @@ class Kernel:
                     self.runtime.current_kernel = None
 
             self.kernel_cpp = prog.create_kernel(taichi_ast_generator,
-                                                 kernel_name, self.is_grad)
+                                                 mangled_kernel_name,
+                                                 self.is_grad)
 
         assert key not in self.compiled_functions
         self.compiled_functions[key] = self.get_function_body(self.kernel_cpp)
@@ -709,9 +813,19 @@ class Kernel:
         return has_array
 
     def ensure_compiled(self, *args):
+        grad_suffix = ""
+        if self.is_grad:
+            grad_suffix = "_grad"
+        mangeled_kernel_name = _mangle_kernel_name(
+            self.full_pkg_path, self.raw_name,
+            self.arg_list_key_getter.lookup_key(args), self.is_grad)
+
         instance_id, arg_features = self.mapper.lookup(args)
         key = (self.func, instance_id)
-        self.materialize(key=key, args=args, arg_features=arg_features)
+        self.materialize(mangled_kernel_name=mangeled_kernel_name,
+                         key=key,
+                         args=args,
+                         arg_features=arg_features)
         return key
 
     # For small kernels (< 3us), the performance can be pretty sensitive to overhead in __call__
