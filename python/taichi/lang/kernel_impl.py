@@ -558,6 +558,7 @@ class Kernel:
             key = (self.func, 0)
         self.runtime.materialize()
         if key in self.compiled_functions:
+            print("TEMP$$$ Loading from online-cache...")
             return
         _logging.trace(f"Compiling kernel {mangled_kernel_name}...")
 
@@ -813,9 +814,6 @@ class Kernel:
         return has_array
 
     def ensure_compiled(self, *args):
-        grad_suffix = ""
-        if self.is_grad:
-            grad_suffix = "_grad"
         mangeled_kernel_name = _mangle_kernel_name(
             self.full_pkg_path, self.raw_name,
             self.arg_list_key_getter.lookup_key(args), self.is_grad)
