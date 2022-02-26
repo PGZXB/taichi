@@ -159,6 +159,9 @@ class SparseMatrixBuilder:
         sm = self.ptr.build()
         return SparseMatrix(sm=sm)
 
+    def to_string(self):
+        return 'smb'
+
 
 sparse_matrix_builder = SparseMatrixBuilder
 # Alias for :class:`SparseMatrixBuilder`

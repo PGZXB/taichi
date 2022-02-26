@@ -1308,7 +1308,9 @@ class MatrixType(CompoundType):
 
     def field(self, **kwargs):
         return Matrix.field(self.n, self.m, dtype=self.dtype, **kwargs)
-
+    
+    def to_string(self):
+        return 'mat'
 
 class MatrixNdarray(Ndarray):
     """Taichi ndarray with matrix elements.

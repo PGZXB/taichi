@@ -396,10 +396,12 @@ class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许
                 res += layout_to_key(layout)
         else:  # intern
             key = None
-            if isinstance(anno, (_ti_core.DataType, _ti_core.Type)):
+            if hasattr(anno, "to_string"):
                 key = anno.to_string()
-            else:
+            elif hasattr(anno, '__name__'):
                 key = anno.__name__
+            else:
+                assert False
 
             res += 'i' + str(len(key)) + key
 
@@ -590,11 +592,24 @@ class Kernel:
                         assert False  #FIXME:WILL_DELETE: 待实现
                     elif isinstance(self.argument_annotations[i],
                                     sparse_matrix_builder):
-                        assert False  #FIXME:WILL_DELETE: 待实现
+                        ptr_type = cook_dtype(primitive_types.u64)
+                        # Treat the sparse matrix argument as a scalar since we only need to pass in the base pointer
+                        #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_arg
+                        impl.get_runtime().prog.decl_arg(ptr_type, False)
                     elif isinstance(self.argument_annotations[i], any_arr):
-                        assert False  #FIXME:WILL_DELETE: 待实现
+                        #FIXME:WILL_DELETE: 暂时, 将来会fix arg_features的形式
+                        dtype = cook_dtype(to_taichi_type(ctx.arg_features[i][0]))
+                        dim = ctx.arg_features[i][1]
+                        element_shape = ctx.arg_features[i][2]
+                        #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_arr_arg
+                        impl.get_runtime().prog.decl_arr_arg(dtype, dim, element_shape)
                     elif isinstance(self.argument_annotations[i], MatrixType):
-                        assert False  #FIXME:WILL_DELETE: 待实现
+                        matrix_type = self.argument_annotations[i]
+                        dtype = cook_dtype(matrix_type.dtype)
+                        for _ in range(matrix_type.n):
+                            for _ in range(matrix_type.m):
+                                #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_arr_arg
+                                impl.get_runtime().prog.decl_arg(dtype, False)
                     else:  #FIXME:WILL_DELETE: 封装成函数
                         dtype = cook_dtype(self.argument_annotations[i])
                         #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_arg
