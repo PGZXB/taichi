@@ -359,9 +359,9 @@ class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许
                 elif isinstance(arg, _ti_core.Expr):
                     res += str(arg.get_underlying_ptr_address())
                 elif isinstance(arg, tuple):
-                    res += ''.join((
-                        TaichiKernelArgumentListKeyGetter.extract_arg(item, anno)
-                        for item in arg))
+                    res += ''.join(
+                        (TaichiKernelArgumentListKeyGetter.extract_arg(
+                            item, anno) for item in arg))
                 else:
                     res += str(id(arg))
         elif isinstance(anno, any_arr):
@@ -371,7 +371,7 @@ class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许
             if isinstance(arg, taichi.lang._ndarray.ScalarNdarray):
                 res += str(len(arg.shape))
                 res += 's'
-                res += 'A' # AOS
+                res += 'A'  # AOS
             elif isinstance(arg, taichi.lang.matrix.VectorNdarray):
                 res += str(len(arg.shape) + 1)
                 res += 's' + str(arg.n)
@@ -384,14 +384,17 @@ class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许
                 element_dim = 0 if anno.element_dim is None else anno.element_dim
                 layout = Layout.AOS if anno.layout is None else anno.layout
                 shape = tuple(arg.shape)
-                element_shape = () if element_dim == 0 else shape[: element_dim] if layout == Layout.SOA else shape[-element_dim:]
+                element_shape = (
+                ) if element_dim == 0 else shape[:
+                                                 element_dim] if layout == Layout.SOA else shape[
+                                                     -element_dim:]
                 res += str(len(shape))
                 res += 's'
                 res += ''.join([f'{e}x' for e in element_shape])
                 if res[-1] == 'x':
-                    res = res[0: len(res)-1]
+                    res = res[0:len(res) - 1]
                 res += layout_to_key(layout)
-        else: # intern
+        else:  # intern
             key = None
             if isinstance(anno, (_ti_core.DataType, _ti_core.Type)):
                 key = anno.to_string()
@@ -419,9 +422,11 @@ class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许
         return self.extract_args_as_key(args, self.annotations)
 
 
-def _mangle_kernel_name(full_pkg_path: str, raw_name: str, argument_list_key: str, is_grad: bool) -> str:
+def _mangle_kernel_name(full_pkg_path: str, raw_name: str,
+                        argument_list_key: str, is_grad: bool) -> str:
     splited_full_pkg_path = full_pkg_path.split('.')
-    mangled_full_pkg_path = ''.join((f'{len(e)}{e}' for e in splited_full_pkg_path))
+    mangled_full_pkg_path = ''.join(
+        (f'{len(e)}{e}' for e in splited_full_pkg_path))
     mangled_name = f"__{'g' if is_grad else 'n'}{mangled_full_pkg_path}{len(raw_name)}{raw_name}{argument_list_key}"
     print("TEMP$$$ Mangle kernel name from '{}.{}' to '{}'".format(
         full_pkg_path, raw_name, mangled_name))

@@ -128,9 +128,6 @@ CodeGenStmtGuard make_while_after_loop_guard(CodeGenLLVM *cg) {
 }  // namespace
 
 // CodeGenLLVM
-
-uint64 CodeGenLLVM::task_counter = 0;
-
 void CodeGenLLVM::visit(Block *stmt_list) {
   for (auto &stmt : stmt_list->statements) {
     stmt->accept(this);
@@ -323,7 +320,7 @@ CodeGenLLVM::CodeGenLLVM(Kernel *kernel,
   context_ty = get_runtime_type("RuntimeContext");
   physical_coordinate_ty = get_runtime_type(kLLVMPhysicalCoordinatesName);
 
-  kernel_name = kernel->name; // NOTE:WILL_DELETE: 统一采用mangled name
+  kernel_name = kernel->name;  // NOTE:WILL_DELETE: 统一采用mangled name
 }
 
 llvm::Value *CodeGenLLVM::cast_int(llvm::Value *input_val,
@@ -1621,9 +1618,9 @@ std::string CodeGenLLVM::init_offloaded_task_function(OffloadedStmt *stmt,
       llvm::FunctionType::get(llvm::Type::getVoidTy(*llvm_context),
                               {llvm::PointerType::get(context_ty, 0)}, false);
 
-  auto task_kernel_name = fmt::format("{}_{}_{}{}", kernel_name, task_counter,
-                                      stmt->task_name(), suffix);
-  task_counter += 1;
+  auto task_kernel_name = fmt::format(
+      "{}_{}_{}{}", kernel_name, task_counter_++, stmt->task_name(), suffix);
+
   func = llvm::Function::Create(task_function_type,
                                 llvm::Function::ExternalLinkage,
                                 task_kernel_name, module.get());
