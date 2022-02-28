@@ -426,10 +426,17 @@ class TaichiKernelArgumentListKeyGetter:  #FIXME:WILL_DELETE: 这个名字也许
 
 def _mangle_kernel_name(full_pkg_path: str, raw_name: str,
                         argument_list_key: str, is_grad: bool) -> str:
-    splited_full_pkg_path = full_pkg_path.split('.')
-    mangled_full_pkg_path = ''.join(
-        (f'{len(e)}{e}' for e in splited_full_pkg_path))
-    mangled_name = f"__{'g' if is_grad else 'n'}{mangled_full_pkg_path}{len(raw_name)}{raw_name}{argument_list_key}"
+    replace_with_table = (
+        ('<', '_'),
+        ('>', '_'),
+    )
+    for old, new in replace_with_table:
+        full_pkg_path = full_pkg_path.replace(old, new)
+        raw_name = raw_name.replace(old, new)
+    splited_full_path = full_pkg_path.split('.')
+    splited_full_path.extend(raw_name.split('.'))
+    mangled_full_path = ''.join((f'{len(e)}{e}' for e in splited_full_path))
+    mangled_name = f"__{'g' if is_grad else 'n'}{mangled_full_path}{argument_list_key}"
     print("TEMP$$$ Mangle kernel name from '{}.{}' to '{}'".format(
         full_pkg_path, raw_name, mangled_name))
     return mangled_name
@@ -476,7 +483,7 @@ class Kernel:
         self.kernel_cpp = None
         self.use_offline_cache = None
         self.full_pkg_path = inspect.getmodule(self.func).__name__
-        self.raw_name = self.func.__name__
+        self.raw_name = self.func.__qualname__
 
     def reset(self):
         self.runtime = impl.get_runtime()
