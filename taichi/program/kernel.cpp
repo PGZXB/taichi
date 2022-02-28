@@ -59,12 +59,13 @@ Kernel::Kernel(Program &program,
     compile();
 }
 
-Kernel::Kernel(Program &program,
-               const std::function<void(Kernel *)> &init_callback,
-               FunctionType compiled_from_offline_cache,
-               const std::string &name)
+Kernel::Kernel(
+    Program &program,
+    const std::function<std::function<void(RuntimeContext &)>(Kernel *)>
+        &compiled_generator,
+    const std::string &name,
+    bool grad)
     : name(name),
-      compiled_(compiled_from_offline_cache),
       is_from_offline_cache_(
           true) {  // FIXME:WILL_DELETE:
                    // 在其他函数是否需要对is_from_offline_cache_做断言
@@ -79,7 +80,7 @@ Kernel::Kernel(Program &program,
     // concurrently, we need to lock this block of code together with
     // taichi::lang::context with a mutex.
     CurrentCallableGuard _(this->program, this);
-    init_callback(this);
+    this->compiled_ = compiled_generator(this);
   }
 }
 

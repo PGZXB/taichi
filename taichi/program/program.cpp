@@ -398,7 +398,7 @@ Kernel &Program::get_snode_writer(SNode *snode) {
 }
 
 Kernel &Program::get_ndarray_reader(Ndarray *ndarray) {
-  auto kernel_name = fmt::format("ndarray_reader");
+  auto kernel_name = fmt::format("ndarray_reader_{}", (uint64)ndarray);
   NdarrayRwKeys keys{ndarray->num_active_indices, ndarray->dtype};
   auto &ker = kernel([keys, this] {
     ExprGroup indices;
@@ -422,7 +422,7 @@ Kernel &Program::get_ndarray_reader(Ndarray *ndarray) {
 }
 
 Kernel &Program::get_ndarray_writer(Ndarray *ndarray) {
-  auto kernel_name = fmt::format("ndarray_writer");
+  auto kernel_name = fmt::format("ndarray_writer_{}", (uint64)ndarray);
   NdarrayRwKeys keys{ndarray->num_active_indices, ndarray->dtype};
   auto &ker = kernel([keys, this] {
     ExprGroup indices;

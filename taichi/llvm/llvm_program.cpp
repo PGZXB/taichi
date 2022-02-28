@@ -688,13 +688,34 @@ std::unique_ptr<Kernel> LlvmProgramImpl::create_kernel_from_offline_cache(
     TI_ASSERT(kernel_symbol);
     func_list.push_back((task_fp_type)kernel_symbol);
   }
-  auto kernel_func = [flist = std::move(func_list)](RuntimeContext &ctx) {
-    for (auto func : flist) {
-      func(&ctx);
-    }
-  };
-  return std::make_unique<Kernel>(*prog, init_callback, kernel_func,
-                                  kernel_name);
+
+  using CompiledType = std::function<void(RuntimeContext &)>;
+  std::function<CompiledType(Kernel *)> compiled_generator =
+      [init_callback, moved_func_list = std::move(func_list)](Kernel *kernel) {
+        init_callback(kernel);
+        return [kernel, flist = std::move(moved_func_list)](
+                   RuntimeContext &ctx) -> void {
+          auto args = kernel->args;
+          // For taichi ndarrays, context.args saves pointer to its
+          // |DeviceAllocation|, CPU backend actually want to use the raw ptr
+          // here.
+          for (std::size_t i = 0; i < args.size(); ++i) {
+            if (args[i].is_array && ctx.is_device_allocation[i] &&
+                args[i].size > 0) {
+              DeviceAllocation *ptr =
+                  static_cast<DeviceAllocation *>(ctx.get_arg<void *>(i));
+              uint64 host_ptr = (uint64)kernel->program->get_llvm_program_impl()
+                                    ->get_ndarray_alloc_info_ptr(*ptr);
+              ctx.set_arg(i, host_ptr);
+              ctx.set_device_allocation(i, false);
+            }
+          }
+          for (auto func : flist) {
+            func(&ctx);
+          }
+        };
+      };
+  return std::make_unique<Kernel>(*prog, compiled_generator, kernel_name, grad);
 }
 
 void LlvmProgramImpl::cache_kernel_info(const std::string &kernel_name,

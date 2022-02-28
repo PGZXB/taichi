@@ -598,11 +598,12 @@ class Kernel:
                         impl.get_runtime().prog.decl_arg(ptr_type, False)
                     elif isinstance(self.argument_annotations[i], any_arr):
                         #FIXME:WILL_DELETE: 暂时, 将来会fix arg_features的形式
-                        dtype = cook_dtype(to_taichi_type(ctx.arg_features[i][0]))
-                        dim = ctx.arg_features[i][1]
-                        element_shape = ctx.arg_features[i][2]
+                        dtype = cook_dtype(to_taichi_type(arg_features[i][0]))
+                        dim = arg_features[i][1]
+                        element_shape = arg_features[i][2]
                         #FIXME:WILL_DELETE: 改为用kernel_cxx调用insert_arr_arg
-                        impl.get_runtime().prog.decl_arr_arg(dtype, dim, element_shape)
+                        impl.get_runtime().prog.decl_arr_arg(
+                            dtype, dim, element_shape)
                     elif isinstance(self.argument_annotations[i], MatrixType):
                         matrix_type = self.argument_annotations[i]
                         dtype = cook_dtype(matrix_type.dtype)
