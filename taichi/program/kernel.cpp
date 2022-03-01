@@ -21,21 +21,21 @@ class Function;
 
 Kernel::Kernel(Program &program,
                const std::function<void()> &func,
-               const std::string &primal_name,
+               const std::string &name,
                bool grad) {
-  this->init(program, func, primal_name, grad);
+  this->init(program, func, name, grad);
 }
 
 Kernel::Kernel(Program &program,
                const std::function<void(Kernel *)> &func,
-               const std::string &primal_name,
+               const std::string &name,
                bool grad) {
-  this->init(program, std::bind(func, this), primal_name, grad);
+  this->init(program, std::bind(func, this), name, grad);
 }
 
 Kernel::Kernel(Program &program,
                std::unique_ptr<IRNode> &&ir,
-               const std::string &primal_name,
+               const std::string &name,
                bool grad)
     : grad(grad), lowered_(false) {
   this->ir = std::move(ir);
@@ -47,12 +47,7 @@ Kernel::Kernel(Program &program,
   this->ir->as<Block>()->kernel = this;
 
   arch = program.config.arch;
-
-  if (!grad) {
-    name = primal_name;
-  } else {
-    name = primal_name + "_grad";
-  }
+  this->name = name;
 
   if (!program.config.lazy_compilation)
     compile();
@@ -383,7 +378,7 @@ std::string Kernel::get_name() const {
 
 void Kernel::init(Program &program,
                   const std::function<void()> &func,
-                  const std::string &primal_name,
+                  const std::string &name,
                   bool grad) {
   this->grad = grad;
   this->lowered_ = false;
@@ -401,12 +396,7 @@ void Kernel::init(Program &program,
   ir_is_ast_ = true;
 
   this->arch = program.config.arch;
-
-  if (!grad) {
-    this->name = primal_name;
-  } else {
-    this->name = primal_name + "_grad";
-  }
+  this->name = name;
 
   {
     // Note: this is NOT a mutex. If we want to call Kernel::Kernel()

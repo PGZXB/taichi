@@ -329,6 +329,116 @@ class TaichiCallableTemplateMapper:
         return self.mapping[key], key
 
 
+class TaichiKernelArgumentListKeyGetter:
+    def __init__(self, annotations, is_grad):
+        self.annotations = annotations
+        self.is_grad = is_grad
+        self.num_args = len(annotations)
+
+    @staticmethod
+    def extract_arg(arg, anno):
+        def layout_to_key(layout):
+            if layout == Layout.AOS:
+                return 'A'
+            elif layout == Layout.SOA:
+                return 'S'
+            assert False
+
+        res = ''
+        if isinstance(anno, template):
+            if isinstance(anno, template):
+                res += 't'
+                if isinstance(arg, taichi.lang.snode.SNode):
+                    res += str(arg.ptr.get_address())
+                elif isinstance(arg, taichi.lang.expr.Expr):
+                    res += str(arg.ptr.get_underlying_ptr_address())
+                elif isinstance(arg, _ti_core.Expr):
+                    res += str(arg.get_underlying_ptr_address())
+                elif isinstance(arg, tuple):
+                    res += ''.join(
+                        (TaichiKernelArgumentListKeyGetter.extract_arg(
+                            item, anno) for item in arg))
+                else:
+                    res += str(id(arg))
+        elif isinstance(anno, any_arr):
+            res += 'a'
+            dtype_str = to_taichi_type(arg.dtype).to_string()
+            res += str(len(dtype_str)) + dtype_str
+            if isinstance(arg, taichi.lang._ndarray.ScalarNdarray):
+                res += str(len(arg.shape))
+                res += 's'
+                res += 'A'  # AOS
+            elif isinstance(arg, taichi.lang.matrix.VectorNdarray):
+                res += str(len(arg.shape) + 1)
+                res += 's' + str(arg.n)
+                res += layout_to_key(arg.layout)
+            elif isinstance(arg, taichi.lang.matrix.MatrixNdarray):
+                res += str(len(arg.shape) + 2)
+                res += 's{}x{}'.format(arg.n, arg.m)
+                res += layout_to_key(arg.layout)
+            else:
+                element_dim = 0 if anno.element_dim is None else anno.element_dim
+                layout = Layout.AOS if anno.layout is None else anno.layout
+                shape = tuple(arg.shape)
+                element_shape = (
+                ) if element_dim == 0 else shape[:
+                                                 element_dim] if layout == Layout.SOA else shape[
+                                                     -element_dim:]
+                res += str(len(shape))
+                res += 's'
+                res += ''.join([f'{e}x' for e in element_shape])
+                if res[-1] == 'x':
+                    res = res[0:len(res) - 1]
+                res += layout_to_key(layout)
+        else:  # other type
+            key = None
+            if hasattr(anno, "to_string"):
+                key = anno.to_string()
+            elif hasattr(anno, '__name__'):
+                key = anno.__name__
+            else:
+                assert False
+
+            res += 'o' + str(len(key)) + key
+
+        return res
+
+    @staticmethod
+    def extract_args_as_key(args, annotations):
+        arg_keys = []
+        for arg, anno in zip(args, annotations):
+            arg_keys.append(
+                TaichiKernelArgumentListKeyGetter.extract_arg(arg, anno))
+        return ''.join(arg_keys)
+
+    def lookup_key(self, args):
+        if len(args) != self.num_args:
+            raise TypeError(
+                f'{self.num_args} argument(s) needed but {len(args)} provided.'
+            )
+
+        return self.extract_args_as_key(args, self.annotations)
+
+
+def _mangle_kernel_name(full_pkg_path: str, raw_name: str,
+                        argument_list_key: str, is_grad: bool) -> str:
+    replace_with_table = (
+        ('<', '_'),
+        ('>', '_'),
+    )
+    for old, new in replace_with_table:
+        full_pkg_path = full_pkg_path.replace(old, new)
+        raw_name = raw_name.replace(old, new)
+    splited_full_path = full_pkg_path.split('.')
+    splited_full_path.extend(raw_name.split('.'))
+    mangled_full_path = ''.join((f'{len(e)}{e}' for e in splited_full_path))
+    mangled_name = f"__{'g' if is_grad else 'n'}{mangled_full_path}{argument_list_key}"
+    _logging.trace(
+        f"Mangle kernel name from '{full_pkg_path}.{raw_name}' to '{mangled_name}'"
+    )
+    return mangled_name
+
+
 def _get_global_vars(_func):
     # Discussions: https://github.com/taichi-dev/taichi/issues/282
     global_vars = _func.__globals__.copy()
@@ -363,9 +473,13 @@ class Kernel:
                 self.template_slot_locations.append(i)
         self.mapper = TaichiCallableTemplateMapper(
             self.argument_annotations, self.template_slot_locations)
+        self.arg_list_key_getter = TaichiKernelArgumentListKeyGetter(
+            self.argument_annotations, self.is_grad)
         impl.get_runtime().kernels.append(self)
         self.reset()
         self.kernel_cpp = None
+        self.full_pkg_path = inspect.getmodule(self.func).__name__
+        self.qualname = self.func.__qualname__
 
     def reset(self):
         self.runtime = impl.get_runtime()
@@ -424,17 +538,17 @@ class Kernel:
             self.argument_annotations.append(annotation)
             self.argument_names.append(param.name)
 
-    def materialize(self, key=None, args=None, arg_features=None):
+    def materialize(self,
+                    mangled_kernel_name,
+                    key=None,
+                    args=None,
+                    arg_features=None):
         if key is None:
             key = (self.func, 0)
         self.runtime.materialize()
         if key in self.compiled_functions:
             return
-        grad_suffix = ""
-        if self.is_grad:
-            grad_suffix = "_grad"
-        kernel_name = f"{self.func.__name__}_c{self.kernel_counter}_{key[1]}{grad_suffix}"
-        _logging.trace(f"Compiling kernel {kernel_name}...")
+        _logging.trace(f"Compiling kernel {mangled_kernel_name}...")
 
         tree, ctx = _get_tree_and_ctx(
             self,
@@ -469,7 +583,7 @@ class Kernel:
                 self.runtime.current_kernel = None
 
         taichi_kernel = impl.get_runtime().prog.create_kernel(
-            taichi_ast_generator, kernel_name, self.is_grad)
+            taichi_ast_generator, mangled_kernel_name, self.is_grad)
 
         self.kernel_cpp = taichi_kernel
 
@@ -642,9 +756,15 @@ class Kernel:
         return has_array
 
     def ensure_compiled(self, *args):
+        mangeled_kernel_name = _mangle_kernel_name(
+            self.full_pkg_path, self.qualname,
+            self.arg_list_key_getter.lookup_key(args), self.is_grad)
         instance_id, arg_features = self.mapper.lookup(args)
         key = (self.func, instance_id)
-        self.materialize(key=key, args=args, arg_features=arg_features)
+        self.materialize(mangled_kernel_name=mangeled_kernel_name,
+                         key=key,
+                         args=args,
+                         arg_features=arg_features)
         return key
 
     # For small kernels (< 3us), the performance can be pretty sensitive to overhead in __call__

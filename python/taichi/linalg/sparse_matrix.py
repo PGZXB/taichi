@@ -168,5 +168,8 @@ class sparse_matrix_builder(annotations.sparse_matrix_builder):
             'ti.linalg.sparse_matrix_builder is deprecated. Please use ti.types.sparse_matrix_builder instead.',
             DeprecationWarning)
 
+    def to_string(self):
+        return 'smb'
+
 
 __all__ = ['SparseMatrix', 'SparseMatrixBuilder', 'sparse_matrix_builder']

@@ -111,7 +111,8 @@ template = Template
 
 
 class sparse_matrix_builder:
-    pass
+    def to_string(self):
+        return 'smb'
 
 
 __all__ = ['ext_arr', 'any_arr', 'template', 'sparse_matrix_builder']

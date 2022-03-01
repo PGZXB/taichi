@@ -466,7 +466,8 @@ void export_lang(py::module &m) {
       .def_readonly("offset_bytes_in_parent_cell",
                     &SNode::offset_bytes_in_parent_cell)
       .def("begin_shared_exp_placement", &SNode::begin_shared_exp_placement)
-      .def("end_shared_exp_placement", &SNode::end_shared_exp_placement);
+      .def("end_shared_exp_placement", &SNode::end_shared_exp_placement)
+      .def("get_address", [](SNode *snode) { return (uint64)snode; });
 
   py::class_<SNodeTree>(m, "SNodeTree")
       .def("id", &SNodeTree::id)

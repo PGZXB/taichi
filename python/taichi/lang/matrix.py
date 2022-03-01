@@ -1286,6 +1286,9 @@ class MatrixType(CompoundType):
         mat = self.cast(Matrix(entries, dt=self.dtype))
         return mat
 
+    def to_string(self):
+        return 'mat'
+
     def cast(self, mat):
         # sanity check shape
         if self.m != mat.m or self.n != mat.n:
