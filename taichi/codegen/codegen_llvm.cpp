@@ -124,9 +124,6 @@ CodeGenStmtGuard make_while_after_loop_guard(CodeGenLLVM *cg) {
 }  // namespace
 
 // CodeGenLLVM
-
-uint64 CodeGenLLVM::task_counter = 0;
-
 void CodeGenLLVM::visit(Block *stmt_list) {
   for (auto &stmt : stmt_list->statements) {
     stmt->accept(this);
@@ -1062,35 +1059,35 @@ void CodeGenLLVM::visit(ArgLoadStmt *stmt) {
 }
 
 void CodeGenLLVM::visit(ReturnStmt *stmt) {
-  if (stmt->ret_type.is_pointer()) {
+  auto types = stmt->element_types();
+  if (std::any_of(types.begin(), types.end(),
+                  [](const DataType &t) { return t.is_pointer(); })) {
     TI_NOT_IMPLEMENTED
   } else {
     TI_ASSERT(stmt->values.size() <= taichi_max_num_ret_value);
-    auto intermediate_bits = 0;
-    if (stmt->values.size() == 1) {
-      if (auto cit = stmt->values[0]->ret_type->cast<CustomIntType>()) {
+    int idx{0};
+    for (auto &value : stmt->values) {
+      auto intermediate_bits = 0;
+      if (auto cit = value->ret_type->cast<CustomIntType>()) {
         intermediate_bits = data_type_bits(cit->get_compute_type());
       } else {
-        intermediate_bits = tlctx->get_data_type(stmt->values[0]->ret_type)
-                                ->getPrimitiveSizeInBits();
+        intermediate_bits =
+            tlctx->get_data_type(value->ret_type)->getPrimitiveSizeInBits();
       }
       llvm::Type *dest_ty = tlctx->get_data_type<int64>();
       llvm::Type *intermediate_type = nullptr;
-      if (llvm_val[stmt->values[0]]->getType() ==
-          llvm::Type::getHalfTy(*llvm_context)) {
-        llvm_val[stmt->values[0]] = builder->CreateFPExt(
-            llvm_val[stmt->values[0]], tlctx->get_data_type<float>());
+      if (llvm_val[value]->getType() == llvm::Type::getHalfTy(*llvm_context)) {
+        llvm_val[value] = builder->CreateFPExt(llvm_val[value],
+                                               tlctx->get_data_type<float>());
         intermediate_type = tlctx->get_data_type<int32>();
       } else {
         intermediate_type =
             llvm::Type::getIntNTy(*llvm_context, intermediate_bits);
       }
       auto extended = builder->CreateZExt(
-          builder->CreateBitCast(llvm_val[stmt->values[0]], intermediate_type),
-          dest_ty);
-      create_call("LLVMRuntime_store_result", {get_runtime(), extended});
-    } else {
-      TI_NOT_IMPLEMENTED;
+          builder->CreateBitCast(llvm_val[value], intermediate_type), dest_ty);
+      create_call("LLVMRuntime_store_result",
+                  {get_runtime(), extended, tlctx->get_constant<int32>(idx++)});
     }
   }
 }
@@ -1620,9 +1617,9 @@ std::string CodeGenLLVM::init_offloaded_task_function(OffloadedStmt *stmt,
       llvm::FunctionType::get(llvm::Type::getVoidTy(*llvm_context),
                               {llvm::PointerType::get(context_ty, 0)}, false);
 
-  auto task_kernel_name = fmt::format("{}_{}_{}{}", kernel_name, task_counter,
-                                      stmt->task_name(), suffix);
-  task_counter += 1;
+  auto task_kernel_name =
+      fmt::format("{}_{}_{}{}", kernel_name, kernel->get_next_task_id(),
+                  stmt->task_name(), suffix);
   func = llvm::Function::Create(task_function_type,
                                 llvm::Function::ExternalLinkage,
                                 task_kernel_name, module.get());
