@@ -330,9 +330,8 @@ class TaichiCallableTemplateMapper:
 
 
 class TaichiKernelArgumentListKeyGetter:
-    def __init__(self, annotations, is_grad):
+    def __init__(self, annotations):
         self.annotations = annotations
-        self.is_grad = is_grad
         self.num_args = len(annotations)
 
     @staticmethod
@@ -474,7 +473,7 @@ class Kernel:
         self.mapper = TaichiCallableTemplateMapper(
             self.argument_annotations, self.template_slot_locations)
         self.arg_list_key_getter = TaichiKernelArgumentListKeyGetter(
-            self.argument_annotations, self.is_grad)
+            self.argument_annotations)
         impl.get_runtime().kernels.append(self)
         self.reset()
         self.kernel_cpp = None
