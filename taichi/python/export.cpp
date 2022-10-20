@@ -9,6 +9,8 @@
 
 namespace taichi {
 
+namespace py { GTiCoreStat g_ticore_stat; };
+
 PYBIND11_MODULE(taichi_python, m) {
   m.doc() = "taichi_python";
 
@@ -16,11 +18,13 @@ PYBIND11_MODULE(taichi_python, m) {
     kv.second(&m);
   }
 
-  export_lang(m);
-  export_math(m);
-  export_misc(m);
-  export_visual(m);
-  export_ggui(m);
+  py::module wpm{&m};
+
+  export_lang(wpm);
+  export_math(wpm);
+  export_misc(wpm);
+  export_visual(wpm);
+  export_ggui(wpm);
 }
 
 }  // namespace taichi

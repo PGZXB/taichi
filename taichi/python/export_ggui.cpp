@@ -6,8 +6,7 @@
 
 #include "taichi/common/interface.h"
 #include "taichi/common/core.h"
-
-namespace py = pybind11;
+#include "taichi/python/export.h"
 
 #ifdef TI_WITH_GGUI
 
