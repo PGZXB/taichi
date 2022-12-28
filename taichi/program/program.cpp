@@ -75,12 +75,7 @@ Program::Program(Arch desired_arch) : snode_rw_accessors_bank_(this) {
   auto &config = global_compile_config_;
   config = default_compile_config;
   config.arch = desired_arch;
-  // TODO: allow users to run in debug mode without out-of-bound checks
-  if (config.debug)
-    config.check_out_of_bound = true;
-  if (config.arch == Arch::cc || arch_uses_spirv(config.arch))
-    config.demote_dense_struct_fors = true;
-  offline_cache::disable_offline_cache_if_needed(&config);
+  config.fit();
 
   profiler = make_profiler(config.arch, config.kernel_profiler);
   if (arch_uses_llvm(config.arch)) {

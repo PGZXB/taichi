@@ -1,8 +1,10 @@
 // Bindings for the python frontend
 
+#include <pybind11/detail/common.h>
 #include <optional>
 #include <string>
 #include "taichi/ir/snode.h"
+#include "taichi/program/compile_config.h"
 
 #if TI_WITH_LLVM
 #include "llvm/Config/llvm-config.h"
@@ -138,6 +140,10 @@ void export_lang(py::module &m) {
 
   py::class_<CompileConfig>(m, "CompileConfig")
       .def(py::init<>())
+      .def("fit", &CompileConfig::fit)
+      .def(
+          "clone", [](CompileConfig *self) -> CompileConfig { return *self; },
+          py::return_value_policy::copy)
       .def_readwrite("arch", &CompileConfig::arch)
       .def_readwrite("opt_level", &CompileConfig::opt_level)
       .def_readwrite("packed", &CompileConfig::packed)

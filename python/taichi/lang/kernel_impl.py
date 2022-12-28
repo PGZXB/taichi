@@ -8,6 +8,7 @@ import weakref
 
 import numpy as np
 import taichi.lang
+from copy import deepcopy
 from taichi._lib import core as _ti_core
 from taichi.lang import impl, ops, runtime_ops
 from taichi.lang.ast import (ASTTransformerContext, KernelSimplicityASTChecker,
@@ -460,7 +461,7 @@ def _get_global_vars(_func):
 class Kernel:
     counter = 0
 
-    def __init__(self, _func, autodiff_mode, _classkernel=False):
+    def __init__(self, _func, autodiff_mode, _classkernel=False, compile_config=None):
         self.func = _func
         self.kernel_counter = Kernel.counter
         Kernel.counter += 1
@@ -485,6 +486,7 @@ class Kernel:
         # Main motivation is that compiled_kernels can be potentially serialized in the AOT scenario.
         self.compiled_kernels = {}
         self.has_print = False
+        self.compile_config = compile_config
 
     def ast_builder(self):
         assert self.kernel_cpp is not None
@@ -794,7 +796,7 @@ class Kernel:
             if prog.config().arch == _ti_core.vulkan:
                 # Compile (& Online Cache & Offline Cache)
                 mgr = prog.get_kernel_compilation_manager()
-                compile_config = prog.config()
+                compile_config = self.compile_config or prog.config()
                 device_caps = prog.get_current_device_caps()
                 ckd = mgr.load_or_compile(compile_config, device_caps,
                                           t_kernel)
@@ -925,7 +927,7 @@ def _inside_class(level_of_class_stackframe):
     return False
 
 
-def _kernel_impl(_func, level_of_class_stackframe, verbose=False):
+def _kernel_impl(_func, level_of_class_stackframe, verbose=False, compile_config=None):
     # Can decorators determine if a function is being defined inside a class?
     # https://stackoverflow.com/a/8793684/12003165
     is_classkernel = _inside_class(level_of_class_stackframe + 1)
@@ -934,10 +936,12 @@ def _kernel_impl(_func, level_of_class_stackframe, verbose=False):
         print(f'kernel={_func.__name__} is_classkernel={is_classkernel}')
     primal = Kernel(_func,
                     autodiff_mode=AutodiffMode.NONE,
-                    _classkernel=is_classkernel)
+                    _classkernel=is_classkernel,
+                    compile_config=compile_config)
     adjoint = Kernel(_func,
                      autodiff_mode=AutodiffMode.REVERSE,
-                     _classkernel=is_classkernel)
+                     _classkernel=is_classkernel,
+                     compile_config=compile_config)
     # Having |primal| contains |grad| makes the tape work.
     primal.grad = adjoint
 
@@ -1005,6 +1009,21 @@ def kernel(fn):
         >>>         x[i] = i
     """
     return _kernel_impl(fn, level_of_class_stackframe=3)
+
+
+def pkernel(**kwargs):
+    kwargs = deepcopy(kwargs)
+    compile_config = impl.get_runtime().prog.config() if impl.get_runtime().prog else impl.default_cfg()
+    compile_config = compile_config.clone()
+    compile_config.offline_cache = True
+    for k, v in kwargs.items():
+        setattr(compile_config, k, v)
+    compile_config.fit()
+
+    def dec(fn):
+        return _kernel_impl(fn, level_of_class_stackframe=3, compile_config=compile_config)
+    
+    return dec
 
 
 class _BoundedDifferentiableMethod:
@@ -1092,4 +1111,4 @@ def data_oriented(cls):
     return cls
 
 
-__all__ = ["data_oriented", "func", "kernel"]
+__all__ = ["data_oriented", "func", "kernel", "pkernel"]
