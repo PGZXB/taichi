@@ -278,10 +278,6 @@ class LlvmProgramImpl : public ProgramImpl {
     return runtime_exec_.get();
   }
 
-  const std::unique_ptr<LlvmOfflineCacheFileReader> &get_cache_reader() {
-    return cache_reader_;
-  }
-
   std::string get_kernel_return_data_layout() override {
     return get_llvm_context()->get_data_layout_string();
   };
@@ -332,10 +328,7 @@ class LlvmProgramImpl : public ProgramImpl {
     // 1. Destructs cache_data_
     cache_data_.reset();
 
-    // 2. Destructs cache_reader_
-    cache_reader_.reset();
-
-    // 3. Destructs runtime_exec_
+    // 2. Destructs runtime_exec_
     runtime_exec_.reset();
   }
   ParallelExecutor compilation_workers;  // parallel compilation
@@ -349,7 +342,6 @@ class LlvmProgramImpl : public ProgramImpl {
   std::size_t num_snode_trees_processed_{0};
   std::unique_ptr<LlvmRuntimeExecutor> runtime_exec_;
   std::unique_ptr<LlvmOfflineCache> cache_data_;
-  std::unique_ptr<LlvmOfflineCacheFileReader> cache_reader_;
 };
 
 LlvmProgramImpl *get_llvm_program(Program *prog);
