@@ -13,12 +13,13 @@ class IRCloner : public IRVisitor {
  private:
   IRNode *other_node;
   std::unordered_map<Stmt *, Stmt *> operand_map_;
+  irpass::analysis::IRClonerContext *ctx_{nullptr};
 
  public:
-  enum Phase { register_operand_map, replace_operand } phase;
+  enum Phase { register_operand_map, replace_operand, clone_function } phase;
 
-  explicit IRCloner(IRNode *other_node)
-      : other_node(other_node), phase(register_operand_map) {
+  explicit IRCloner(IRNode *other_node, irpass::analysis::IRClonerContext *ctx)
+      : other_node(other_node), ctx_(ctx), phase(register_operand_map) {
     allow_undefined_visitor = true;
     invoke_default_visitor = true;
   }
@@ -118,9 +119,26 @@ class IRCloner : public IRVisitor {
     other_node = other;
   }
 
-  static std::unique_ptr<IRNode> run(IRNode *root) {
+  void visit(FrontendFuncCallStmt *stmt) override {
+    if (phase == clone_function) {
+      stmt->func = ctx_->clone_function(stmt->func);
+    }
+  }
+
+  void visit(FuncCallStmt *stmt) override {
+    if (phase == clone_function) {
+      stmt->func = ctx_->clone_function(stmt->func);
+    }
+  }
+
+  static std::unique_ptr<IRNode> run(IRNode *root,
+                                     irpass::analysis::IRClonerContext *ctx) {
     std::unique_ptr<IRNode> new_root = root->clone();
-    IRCloner cloner(new_root.get());
+    IRCloner cloner(new_root.get(), ctx);
+    if (ctx) {
+      cloner.phase = IRCloner::clone_function;
+      root->accept(&cloner);
+    }
     cloner.phase = IRCloner::register_operand_map;
     root->accept(&cloner);
     cloner.phase = IRCloner::replace_operand;
@@ -131,8 +149,16 @@ class IRCloner : public IRVisitor {
 };
 
 namespace irpass::analysis {
-std::unique_ptr<IRNode> clone(IRNode *root) {
-  return IRCloner::run(root);
+Function *IRClonerContext::clone_function(Function *func) {
+  functions_.push_back(
+      std::make_unique<Function>(func->program, func->func_key));
+  auto *cloned = functions_.back().get();
+  cloned->set_function_body(irpass::analysis::clone(func->ir.get(), this));
+  return cloned;
+}
+
+std::unique_ptr<IRNode> clone(IRNode *root, IRClonerContext *ctx) {
+  return IRCloner::run(root, ctx);
 }
 }  // namespace irpass::analysis
 

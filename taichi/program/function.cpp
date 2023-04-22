@@ -19,17 +19,12 @@ void Function::set_function_body(const std::function<void()> &func) {
   func();
   finalize_params();
   finalize_rets();
-
-  if (program->compile_config().offline_cache) {  // For generating AST-Key
-    std::ostringstream oss;
-    gen_offline_cache_key(ir.get(), &oss);
-    ast_serialization_data_ = oss.str();
-  }
 }
 
-void Function::set_function_body(std::unique_ptr<IRNode> func_body) {
+void Function::set_function_body(std::unique_ptr<IRNode> func_body,
+                                 IRType ir_type) {
   ir = std::move(func_body);
-  ir_type_ = IRType::InitialIR;
+  ir_type_ = ir_type;
 }
 
 std::string Function::get_name() const {

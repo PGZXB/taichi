@@ -60,6 +60,14 @@ class ControlFlowGraph;
 namespace irpass {
 namespace analysis {
 
+class IRClonerContext {
+ public:
+  Function *clone_function(Function *func);
+
+ private:
+  std::vector<std::unique_ptr<Function>> functions_;
+};
+
 /**
  * Checks if the two input statements may be aliased to the same address.
  *
@@ -76,7 +84,7 @@ AliasResult alias_analysis(Stmt *var1, Stmt *var2);
 
 std::unique_ptr<ControlFlowGraph> build_cfg(IRNode *root);
 void check_fields_registered(IRNode *root);
-std::unique_ptr<IRNode> clone(IRNode *root);
+std::unique_ptr<IRNode> clone(IRNode *root, IRClonerContext *ctx = nullptr);
 int count_statements(IRNode *root);
 
 /**
