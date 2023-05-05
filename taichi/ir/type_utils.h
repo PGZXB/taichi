@@ -108,14 +108,25 @@ inline bool is_integral(DataType dt) {
 }
 
 inline bool is_signed(DataType dt) {
-  // Shall we return false if is_integral returns false?
-  TI_ASSERT(is_integral(dt));
+  // // Shall we return false if is_integral returns false?
+  // TI_ASSERT(is_integral(dt));
   if (auto t = dt->cast<QuantIntType>())
     return t->get_is_signed();
-  return dt->is_primitive(PrimitiveTypeID::i8) ||
-         dt->is_primitive(PrimitiveTypeID::i16) ||
-         dt->is_primitive(PrimitiveTypeID::i32) ||
-         dt->is_primitive(PrimitiveTypeID::i64);
+
+  auto primitive_type = dt->cast<PrimitiveType>();
+  if (primitive_type == nullptr) {
+    return false;
+  }
+
+  const auto type = primitive_type->type;
+
+  return type == PrimitiveTypeID::i8 || type == PrimitiveTypeID::i16 ||
+         type == PrimitiveTypeID::i32 || type == PrimitiveTypeID::i64;
+
+  // return dt->is_primitive(PrimitiveTypeID::i8) ||
+  //        dt->is_primitive(PrimitiveTypeID::i16) ||
+  //        dt->is_primitive(PrimitiveTypeID::i32) ||
+  //        dt->is_primitive(PrimitiveTypeID::i64);
 }
 
 inline bool is_unsigned(DataType dt) {

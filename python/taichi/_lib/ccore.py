@@ -50,6 +50,14 @@ class TaichiCCore:
         self._dll.ticore_hello_world.argtypes = [ctypes.c_char_p]
         self._dll.ticore_hello_world.restype = ctypes.c_int
 
+        # int ticore_compile_and_launch_kernel(void *program, const void *kernel, void *luanch_ctx);
+        self._dll.ticore_compile_and_launch_kernel.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+        ]
+        self._dll.ticore_compile_and_launch_kernel.restype = ctypes.c_int
+
     def __getattr__(self, name):
         if name == "hello_world":
 
@@ -57,6 +65,14 @@ class TaichiCCore:
                 return self._dll.ticore_hello_world(extra_msg.encode("utf-8"))
 
             return _hello_world
+        elif name == "compile_and_launch_kernel":
+
+            def _compile_and_launch_kernel(program, kernel, launch_ctx):
+                return self._dll.ticore_compile_and_launch_kernel(
+                    program, kernel, launch_ctx
+                )
+
+            return _compile_and_launch_kernel
         else:
             raise AttributeError(f"Attribute {name} not found")
 

@@ -10,9 +10,9 @@ target_sources(${TAICHI_CORE_EXPORTS_NAME}
 target_include_directories(${TAICHI_CORE_EXPORTS_NAME}
   PRIVATE
     ${PROJECT_SOURCE_DIR}
-    # ${PROJECT_SOURCE_DIR}/external/spdlog/include
-    # ${PROJECT_SOURCE_DIR}/external/eigen
-    # ${LLVM_INCLUDE_DIRS} # For "llvm/ADT/SmallVector.h" included in ir.h
+    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+    ${PROJECT_SOURCE_DIR}/external/eigen
+    ${LLVM_INCLUDE_DIRS} # For "llvm/ADT/SmallVector.h" included in ir.h
   )
 
 target_link_libraries(${TAICHI_CORE_EXPORTS_NAME} PRIVATE taichi_core)

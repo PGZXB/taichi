@@ -50,7 +50,12 @@ static_assert(false, "32-bit Windows systems are not supported")
 extern "C" {
 #endif  // __cplusplus
 
+// The following functions are temporarily exposed for testing purposes.
+
 TI_DLL_EXPORT int TI_API_CALL ticore_hello_world(const char *extra_msg);
+
+TI_DLL_EXPORT int TI_API_CALL ticore_compile_and_launch_kernel(
+     void *program, const void *kernel, void *launch_ctx);
 
 #ifdef __cplusplus
 }  // extern "C"

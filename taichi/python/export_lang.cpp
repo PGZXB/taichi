@@ -1,5 +1,6 @@
 // Bindings for the python frontend
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include "taichi/ir/snode.h"
@@ -453,7 +454,10 @@ void export_lang(py::module &m) {
       .def("compile_kernel", &Program::compile_kernel,
            py::return_value_policy::reference)
       .def("launch_kernel", &Program::launch_kernel)
-      .def("get_device_caps", &Program::get_device_caps);
+      .def("get_device_caps", &Program::get_device_caps)
+      .def("get_raw_pointer", [](Program *program) -> std::uintptr_t {
+        return reinterpret_cast<std::uintptr_t>(program);
+      });
 
   py::class_<AotModuleBuilder>(m, "AotModuleBuilder")
       .def("add_field", &AotModuleBuilder::add_field)
@@ -705,7 +709,10 @@ void export_lang(py::module &m) {
           [](Kernel *self) -> ASTBuilder * {
             return &self->context->builder();
           },
-          py::return_value_policy::reference);
+          py::return_value_policy::reference)
+      .def("get_raw_pointer", [](Kernel *kernel) -> std::uintptr_t {
+        return reinterpret_cast<std::uintptr_t>(kernel);
+      });
 
   py::class_<LaunchContextBuilder>(m, "KernelLaunchContext")
       .def("set_arg_int", &LaunchContextBuilder::set_arg_int)
@@ -725,7 +732,11 @@ void export_lang(py::module &m) {
       .def("set_extra_arg_int", &LaunchContextBuilder::set_extra_arg_int)
       .def("get_struct_ret_int", &LaunchContextBuilder::get_struct_ret_int)
       .def("get_struct_ret_uint", &LaunchContextBuilder::get_struct_ret_uint)
-      .def("get_struct_ret_float", &LaunchContextBuilder::get_struct_ret_float);
+      .def("get_struct_ret_float", &LaunchContextBuilder::get_struct_ret_float)
+      .def("get_raw_pointer",
+           [](LaunchContextBuilder *ctx) -> std::uintptr_t {
+             return reinterpret_cast<std::uintptr_t>(ctx);
+           });
 
   py::class_<Function>(m, "Function")
       .def("insert_scalar_param", &Function::insert_scalar_param)

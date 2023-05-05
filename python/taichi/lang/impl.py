@@ -313,6 +313,7 @@ class PyTaichi:
     def __init__(self, kernels=None):
         self.materialized = False
         self.prog = None
+        self.prog_handle = None
         self.src_info_stack = []
         self.inside_kernel = False
         self.compiling_callable = None  # pointer to instance of lang::Kernel/Function
@@ -377,6 +378,7 @@ class PyTaichi:
     def create_program(self):
         if self.prog is None:
             self.prog = _ti_core.Program()
+            self.prog_handle = self.prog.get_raw_pointer()
 
     @staticmethod
     def materialize_root_fb(is_first_call):
