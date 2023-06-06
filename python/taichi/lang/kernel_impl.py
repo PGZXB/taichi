@@ -889,12 +889,10 @@ class Kernel:
         p_target_tape()
 
         def p_set_opt_level():
-            # print(id(self.autodiff_mode), id(adm_None))
-            # if self.autodiff_mode not in (AutodiffMode.NONE, ): # NOTE: Fast
-            if AutodiffMode.NONE != self.autodiff_mode:
-                # _logging.warn("""opt_level = 1 is enforced to enable gradient computation.""")
-                # impl.current_cfg().opt_level = 1
-                pass
+            # if self.autodiff_mode not in (AutodiffMode.NONE, ) and impl.current_cfg().opt_level == 0: # NOTE: Fast
+            if AutodiffMode.NONE != self.autodiff_mode and impl.current_cfg().opt_level == 0:
+                _logging.warn("""opt_level = 1 is enforced to enable gradient computation.""")
+                impl.current_cfg().opt_level = 1
         p_set_opt_level()
 
         def p_launch_kernel():
