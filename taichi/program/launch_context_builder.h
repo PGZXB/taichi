@@ -16,6 +16,8 @@ class LaunchContextBuilder {
     kRWTexture = 3
   };
 
+
+  LaunchContextBuilder() = default;
   explicit LaunchContextBuilder(CallableBase *kernel);
 
   LaunchContextBuilder(LaunchContextBuilder &&) = default;

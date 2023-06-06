@@ -613,8 +613,11 @@ class Kernel:
         callbacks = []
 
         def make_launch_ctx():
-            return t_kernel.make_launch_context()
+            return t_kernel.make_launch_context_pp()
         launch_ctx = make_launch_ctx()
+        # def make_launch_context_p():
+        #     return t_kernel.make_launch_context_p()
+        # _some_ptr = make_launch_context_p()
 
         def set_args():
             actual_argument_slot = 0
@@ -629,26 +632,28 @@ class Kernel:
 
             for i, v in enumerate(args):
                 needed = self.arguments[i].annotation
-                if isinstance(needed, template):
-                    continue
-                if actual_argument_slot >= max_arg_num:
-                    exceed_max_arg_num = True
-                    break
+                # if isinstance(needed, template):
+                #     continue
+                # if actual_argument_slot >= max_arg_num:
+                #     exceed_max_arg_num = True
+                #     break
                 provided = type(v)
                 # Note: do not use sth like "needed == f32". That would be slow.
-                if id(needed) in primitive_types.real_type_ids:
-                    if not isinstance(v, (float, int, np.floating, np.integer)):
-                        raise TaichiRuntimeTypeError.get(i, needed.to_string(), provided)
-                    launch_ctx.set_arg_float(actual_argument_slot, float(v))
-                elif id(needed) in primitive_types.integer_type_ids:
-                    if not isinstance(v, (int, np.integer)):
-                        raise TaichiRuntimeTypeError.get(i, needed.to_string(), provided)
-                    if is_signed(cook_dtype(needed)):
-                        # launch_ctx.set_arg_int(actual_argument_slot, int(v))
-                        set_arg_i(v)
-                    else:
-                        # launch_ctx.set_arg_uint(actual_argument_slot, int(v))
-                        set_arg_u(v)
+                # if id(needed) in primitive_types.real_type_ids:
+                #     if not isinstance(v, (float, int, np.floating, np.integer)):
+                #         raise TaichiRuntimeTypeError.get(i, needed.to_string(), provided)
+                #     launch_ctx.set_arg_float(actual_argument_slot, float(v))
+                # elif id(needed) in primitive_types.integer_type_ids:
+                if not isinstance(v, (int, np.integer)):
+                    raise TaichiRuntimeTypeError.get(i, needed.to_string(), provided)
+                if is_signed(cook_dtype(needed)):
+                    # launch_ctx.set_arg_int(actual_argument_slot, int(v))
+                    set_arg_i(v)
+                else:
+                    # launch_ctx.set_arg_uint(actual_argument_slot, int(v))
+                    set_arg_u(v)
+                continue
+                if True: pass
                 elif isinstance(needed, sparse_matrix_builder):
                     # Pass only the base pointer of the ti.types.sparse_matrix_builder() argument
                     launch_ctx.set_arg_uint(actual_argument_slot, v._get_ndarray_addr())

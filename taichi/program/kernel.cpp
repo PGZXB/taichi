@@ -1,5 +1,6 @@
 #include "taichi/program/kernel.h"
 
+#include "taichi/program/launch_context_builder.h"
 #include "taichi/rhi/cuda/cuda_driver.h"
 #include "taichi/codegen/codegen.h"
 #include "taichi/common/logging.h"
@@ -55,8 +56,21 @@ Kernel::Kernel(Program &program,
   }
 }
 
+static LaunchContextBuilder builder;
+static LaunchContextBuilder builder_p;
+
 LaunchContextBuilder Kernel::make_launch_context() {
   return LaunchContextBuilder(this);
+}
+
+LaunchContextBuilder *Kernel::make_launch_context_pp() {
+  new (&builder) LaunchContextBuilder(this);
+  return &builder;
+}
+
+LaunchContextBuilder *Kernel::make_launch_context_p() {
+  new (&builder_p) LaunchContextBuilder();
+  return &builder_p;
 }
 
 template <typename T>

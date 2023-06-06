@@ -41,6 +41,8 @@ class TI_DLL_EXPORT Kernel : public Callable {
   }
 
   LaunchContextBuilder make_launch_context();
+  LaunchContextBuilder *make_launch_context_pp();
+  LaunchContextBuilder *make_launch_context_p();
 
   template <typename T>
   T fetch_ret(DataType dt, int i);

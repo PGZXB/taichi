@@ -1,5 +1,6 @@
 // Bindings for the python frontend
 
+#include <pybind11/detail/common.h>
 #include <optional>
 #include <string>
 #include "taichi/ir/snode.h"
@@ -681,7 +682,12 @@ void export_lang(py::module &m) {
       .def("insert_ret", &Kernel::insert_ret)
       .def("finalize_rets", &Kernel::finalize_rets)
       .def("finalize_params", &Kernel::finalize_params)
-      .def("make_launch_context", &Kernel::make_launch_context)
+      .def("make_launch_context_pp", &Kernel::make_launch_context_pp, py::return_value_policy::reference)
+      .def("make_launch_context_p", &Kernel::make_launch_context_p, py::return_value_policy::reference)
+      .def(
+          "_get_some_ptr",
+          [](Kernel *self) -> std::uintptr_t { return (std::uintptr_t)self; },
+          py::return_value_policy::reference)
       .def(
           "ast_builder",
           [](Kernel *self) -> ASTBuilder * {
