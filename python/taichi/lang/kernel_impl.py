@@ -613,7 +613,7 @@ class Kernel:
         callbacks = []
 
         def make_launch_ctx():
-            return t_kernel.make_launch_context_pp()
+            return t_kernel.make_launch_context()
         launch_ctx = make_launch_ctx()
         # def make_launch_context_p():
         #     return t_kernel.make_launch_context_p()

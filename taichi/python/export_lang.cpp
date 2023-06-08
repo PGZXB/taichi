@@ -686,6 +686,7 @@ void export_lang(py::module &m) {
            py::return_value_policy::reference)
       .def("make_launch_context_p", &Kernel::make_launch_context_p,
            py::return_value_policy::reference)
+      .def("make_launch_context", &Kernel::make_launch_context)
       .def(
           "_get_some_ptr",
           [](Kernel *self) -> std::uintptr_t { return (std::uintptr_t)self; },
