@@ -646,6 +646,7 @@ class Kernel:
                 # elif id(needed) in primitive_types.integer_type_ids:
                 if not isinstance(v, (int, np.integer)):
                     raise TaichiRuntimeTypeError.get(i, needed.to_string(), provided)
+                # if _ti_core.fake_is_signed(cook_dtype(needed)):
                 if is_signed(cook_dtype(needed)):
                     # launch_ctx.set_arg_int(actual_argument_slot, int(v))
                     set_arg_i(v)

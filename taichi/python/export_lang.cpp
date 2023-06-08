@@ -682,8 +682,10 @@ void export_lang(py::module &m) {
       .def("insert_ret", &Kernel::insert_ret)
       .def("finalize_rets", &Kernel::finalize_rets)
       .def("finalize_params", &Kernel::finalize_params)
-      .def("make_launch_context_pp", &Kernel::make_launch_context_pp, py::return_value_policy::reference)
-      .def("make_launch_context_p", &Kernel::make_launch_context_p, py::return_value_policy::reference)
+      .def("make_launch_context_pp", &Kernel::make_launch_context_pp,
+           py::return_value_policy::reference)
+      .def("make_launch_context_p", &Kernel::make_launch_context_p,
+           py::return_value_policy::reference)
       .def(
           "_get_some_ptr",
           [](Kernel *self) -> std::uintptr_t { return (std::uintptr_t)self; },
@@ -986,6 +988,7 @@ void export_lang(py::module &m) {
   m.def("is_quant", is_quant);
   m.def("is_integral", is_integral);
   m.def("is_signed", is_signed);
+  m.def("fake_is_signed", [](DataType *dt) -> bool { return true; });
   m.def("is_real", is_real);
   m.def("is_unsigned", is_unsigned);
   m.def("is_tensor", is_tensor);
