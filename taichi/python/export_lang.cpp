@@ -383,11 +383,15 @@ void export_lang(py::module &m) {
       .def(
           "create_kernel",
           [](Program *program, const std::function<void(Kernel *)> &body,
-             const std::string &name, AutodiffMode autodiff_mode) -> Kernel * {
+             const std::string &name, AutodiffMode autodiff_mode) -> py::tuple {
             py::gil_scoped_release release;
-            return &program->kernel(body, name, autodiff_mode);
+            py::tuple ret(2);
+            auto *kernel = &program->kernel(body, name, autodiff_mode);
+            ret[0] = kernel;
+            ret[1] = (std::uintptr_t)kernel;
+            return ret;
           },
-          py::return_value_policy::reference)
+          py::return_value_policy::move)
       .def("create_function", &Program::create_function,
            py::return_value_policy::reference)
       .def("create_sparse_matrix",
@@ -452,6 +456,12 @@ void export_lang(py::module &m) {
       .def("compile_kernel", &Program::compile_kernel,
            py::return_value_policy::reference)
       .def("launch_kernel", &Program::launch_kernel)
+      .def("c_launch_kernel",
+           [](Program *self, const CompiledKernelData &compiled_kernel_data,
+              std::uintptr_t p_ctx) {
+             auto &ctx = *(LaunchContextBuilder *)p_ctx;
+             self->launch_kernel(compiled_kernel_data, ctx);
+           })
       .def("get_device_caps", &Program::get_device_caps);
 
   py::class_<AotModuleBuilder>(m, "AotModuleBuilder")
@@ -687,6 +697,10 @@ void export_lang(py::module &m) {
       .def("make_launch_context_p", &Kernel::make_launch_context_p,
            py::return_value_policy::reference)
       .def("make_launch_context", &Kernel::make_launch_context)
+      .def(
+          "make_laucnh_context_EMPTY",
+          [](Kernel *self) -> int * { return nullptr; },
+          py::return_value_policy::reference)
       .def(
           "_get_some_ptr",
           [](Kernel *self) -> std::uintptr_t { return (std::uintptr_t)self; },

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -51,6 +53,14 @@ extern "C" {
 #endif  // __cplusplus
 
 TI_DLL_EXPORT int TI_API_CALL ticore_hello_world(const char *extra_msg);
+
+TI_DLL_EXPORT int TI_API_CALL ticore_make_launch_context_EMPTY(const void *p_kernel, void **ret_ctx);
+
+TI_DLL_EXPORT int TI_API_CALL ticore_make_launch_context(const void *p_kernel, void **ret_ctx);
+
+TI_DLL_EXPORT int TI_API_CALL ticore_launch_context_set_arg_int(void *p_ctx, int p_arg_id, int64_t p_val);
+
+TI_DLL_EXPORT int TI_API_CALL ticore_launch_context_set_arg_int_EMPTY(void *p_ctx, int p_arg_id, int64_t p_val);
 
 #ifdef __cplusplus
 }  // extern "C"

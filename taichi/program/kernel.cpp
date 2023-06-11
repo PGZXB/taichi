@@ -56,6 +56,7 @@ Kernel::Kernel(Program &program,
   }
 }
 
+// NOTE: Temporary solution, to test
 static LaunchContextBuilder builder;
 static LaunchContextBuilder builder_p;
 
@@ -64,11 +65,13 @@ LaunchContextBuilder Kernel::make_launch_context() {
 }
 
 LaunchContextBuilder *Kernel::make_launch_context_pp() {
+  builder.~LaunchContextBuilder();
   new (&builder) LaunchContextBuilder(this);
   return &builder;
 }
 
 LaunchContextBuilder *Kernel::make_launch_context_p() {
+  builder_p.~LaunchContextBuilder();
   new (&builder_p) LaunchContextBuilder();
   return &builder_p;
 }

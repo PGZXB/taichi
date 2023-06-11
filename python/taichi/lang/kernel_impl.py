@@ -10,7 +10,7 @@ import weakref
 
 import numpy as np
 import taichi.lang
-from taichi._lib import core as _ti_core
+from taichi._lib import core as _ti_core, ccore as _ti_ccore
 from taichi.lang import impl, ops, runtime_ops
 from taichi.lang._wrap_inspect import getsourcefile, getsourcelines
 from taichi.lang.ast import (
@@ -602,19 +602,28 @@ class Kernel:
                 self.runtime.current_kernel = None
                 self.runtime.compiling_callable = None
 
-        taichi_kernel = impl.get_runtime().prog.create_kernel(taichi_ast_generator, kernel_name, self.autodiff_mode)
+        taichi_kernel, kernel_raw_ptr = impl.get_runtime().prog.create_kernel(taichi_ast_generator, kernel_name, self.autodiff_mode)
         assert key not in self.compiled_kernels
-        self.compiled_kernels[key] = taichi_kernel
+        self.compiled_kernels[key] = (taichi_kernel, kernel_raw_ptr)
 
-    def launch_kernel(self, t_kernel, *args):
+    def launch_kernel(self, t_kernel, kernel_raw_ptr, *args):
         assert len(args) == len(self.arguments), f"{len(self.arguments)} arguments needed but {len(args)} provided"
 
         tmps = []
         callbacks = []
 
         def make_launch_ctx():
-            return t_kernel.make_launch_context()
+            return _ti_ccore.make_launch_context(kernel_raw_ptr)
         launch_ctx = make_launch_ctx()
+        # def make_old_launch_ctx():
+        #     return t_kernel.make_launch_context_pp()
+        # old_launch_ctx = make_old_launch_ctx()
+        # def c_empty_make_launch_ctx():
+        #     return _ti_ccore.make_launch_context_EMPTY(kernel_raw_ptr)
+        # c_empty_launch_ctx = c_empty_make_launch_ctx()
+        # def pybind11_empty_make_launch_ctx():
+        #     return t_kernel.make_laucnh_context_EMPTY()
+        # pybind11_empty_launch_ctx = pybind11_empty_make_launch_ctx()
         # def make_launch_context_p():
         #     return t_kernel.make_launch_context_p()
         # _some_ptr = make_launch_context_p()
@@ -624,10 +633,14 @@ class Kernel:
             max_arg_num = 64
             exceed_max_arg_num = False
 
+            def old_set_arg_i(v):
+                old_launch_ctx.set_arg_int(actual_argument_slot, int(v))
+
             def set_arg_i(v):
-                launch_ctx.set_arg_int(actual_argument_slot, int(v))
+                _ti_ccore.launch_context_set_arg_int(launch_ctx, actual_argument_slot, int(v))
 
             def set_arg_u(v):
+                assert False
                 launch_ctx.set_arg_uint(actual_argument_slot, int(v))
 
             for i, v in enumerate(args):
@@ -650,6 +663,7 @@ class Kernel:
                 if is_signed(cook_dtype(needed)):
                     # launch_ctx.set_arg_int(actual_argument_slot, int(v))
                     set_arg_i(v)
+                    # old_set_arg_i(v)
                 else:
                     # launch_ctx.set_arg_uint(actual_argument_slot, int(v))
                     set_arg_u(v)
@@ -822,7 +836,8 @@ class Kernel:
                 # Compile kernel (& Online Cache & Offline Cache)
                 compiled_kernel_data = prog.compile_kernel(prog.config(), prog.get_device_caps(), t_kernel)
                 # Launch kernel
-                prog.launch_kernel(compiled_kernel_data, launch_ctx)
+                prog.c_launch_kernel(compiled_kernel_data, launch_ctx)
+                # prog.launch_kernel(compiled_kernel_data, launch_ctx)
             except Exception as e:
                 e = handle_exception_from_cpp(e)
                 raise e from None
@@ -901,10 +916,12 @@ class Kernel:
                 impl.current_cfg().opt_level = 1
         p_set_opt_level()
 
+        def p_get_kernel_by_key(key):
+            return self.compiled_kernels[key]
+
         def p_launch_kernel():
             key = self.ensure_compiled(*args)
-            kernel_cpp = self.compiled_kernels[key] # NOTE: 确定改到cpp-side能否省时
-            return self.launch_kernel(kernel_cpp, *args)
+            return self.launch_kernel(*p_get_kernel_by_key(key), *args)
         return p_launch_kernel()
 
 

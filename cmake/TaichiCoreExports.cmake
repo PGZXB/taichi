@@ -10,9 +10,9 @@ target_sources(${TAICHI_CORE_EXPORTS_NAME}
 target_include_directories(${TAICHI_CORE_EXPORTS_NAME}
   PRIVATE
     ${PROJECT_SOURCE_DIR}
-    # ${PROJECT_SOURCE_DIR}/external/spdlog/include
-    # ${PROJECT_SOURCE_DIR}/external/eigen
-    # ${LLVM_INCLUDE_DIRS} # For "llvm/ADT/SmallVector.h" included in ir.h
+    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+    ${PROJECT_SOURCE_DIR}/external/eigen
+    ${LLVM_INCLUDE_DIRS} # For "llvm/ADT/SmallVector.h" included in ir.h
   )
 
 target_link_libraries(${TAICHI_CORE_EXPORTS_NAME} PRIVATE taichi_core)
@@ -50,8 +50,8 @@ function(install_taichi_core_exports INSTALL_NAME TAICHI_CORE_EXPORTS_DIR)
   message("Installing to ${CMAKE_INSTALL_PREFIX}")
 
   install(TARGETS ${TAICHI_CORE_EXPORTS_NAME} EXPORT TaichiExportTargets${INSTALL_NAME}
-      LIBRARY DESTINATION ${TAICHI_CORE_EXPORTS_DIR}/${CMAKE_INSTALL_LIBDIR}
-      ARCHIVE DESTINATION ${TAICHI_CORE_EXPORTS_DIR}/${CMAKE_INSTALL_LIBDIR}
+      # LIBRARY DESTINATION ${TAICHI_CORE_EXPORTS_DIR}/${CMAKE_INSTALL_LIBDIR}
+      # ARCHIVE DESTINATION ${TAICHI_CORE_EXPORTS_DIR}/${CMAKE_INSTALL_LIBDIR}
       RUNTIME DESTINATION ${TAICHI_CORE_EXPORTS_DIR}/${CMAKE_INSTALL_BINDIR}
       # PUBLIC_HEADER DESTINATION ${TAICHI_CORE_EXPORTS_DIR}/${CMAKE_INSTALL_INCLUDEDIR}/taichi/core
       )
